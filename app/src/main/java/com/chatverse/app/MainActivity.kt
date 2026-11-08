@@ -168,6 +168,21 @@ private suspend fun supabaseCall(path: String, token: String, method: String = "
     }
 
 @Composable
+private fun BrandMark(size: androidx.compose.ui.unit.Dp = 64.dp) {
+    Box(
+        modifier = Modifier.size(size).clip(RoundedCornerShape(size * 0.34f))
+            .background(Brush.linearGradient(listOf(Color(0xFF9BFFE5), Color(0xFF43CBB6), Color(0xFF247D91)))),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(Modifier.fillMaxSize().padding(size * 0.09f).clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "ChatVerse",
+                tint = Color(0xFF06171A), modifier = Modifier.size(size * 0.52f))
+        }
+    }
+}
+
+@Composable
 private fun AuthGate() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("chatverse_session", android.content.Context.MODE_PRIVATE) }
@@ -186,79 +201,128 @@ private fun AuthGate() {
         })
         return
     }
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF10242A), Night, Color(0xFF080D12)))).padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("ChatVerse", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-            Text("Beyond Messaging", color = Mint, fontSize = 13.sp, letterSpacing = 1.3.sp)
-            Spacer(Modifier.height(12.dp))
-            Text(if (isRegister) "Create your account" else "Welcome back", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-            if (isRegister) OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (message.isNotBlank()) Text(message, color = Color(0xFFFFB4AB), fontSize = 12.sp)
-            Button(onClick = {
-                if (email.isBlank() || password.length < 6 || (isRegister && username.isBlank())) {
-                    message = "Isi semua data. Password minimal 6 karakter."
-                } else {
-                    busy = true
-                    message = "Menghubungkan ke ChatVerse..."
-                    val payload = JSONObject().put("email", email.trim()).put("password", password)
-                    if (isRegister) payload.put("data", JSONObject().put("username", username.trim()).put("display_name", username.trim()))
-                    val endpoint = if (isRegister) "signup" else "token?grant_type=password"
-                    val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/auth/v1/" + endpoint)
-                        .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-                        .addHeader("Content-Type", "application/json")
-                        .post(payload.toString().toRequestBody(jsonType)).build()
-                    httpClient.newCall(request).enqueue(object : Callback {
-                        override fun onFailure(call: Call, e: IOException) {
-                            (context as? ComponentActivity)?.runOnUiThread {
-                                busy = false
-                                message = "Koneksi gagal: periksa internet lalu coba lagi."
-                            }
-                        }
-                        override fun onResponse(call: Call, response: Response) {
-                            val body = response.body?.string().orEmpty()
-                            val result = runCatching { JSONObject(body) }.getOrNull()
-                            val token = result?.optString("access_token").orEmpty()
-                            (context as? ComponentActivity)?.runOnUiThread {
-                                busy = false
-                                if (response.isSuccessful && token.isNotBlank()) {
-                                    prefs.edit().putString("access_token", token).putString("email", email.trim()).apply()
-                                    accessToken = token
-                                    message = ""
-                                } else if (response.isSuccessful && isRegister) {
-                                    message = "Akun dibuat. Cek email untuk konfirmasi, lalu masuk."
-                                    isRegister = false
-                                } else {
-                                    message = result?.optString("msg")?.takeIf { it.isNotBlank() }
-                                        ?: result?.optString("message")?.takeIf { it.isNotBlank() }
-                                        ?: result?.optString("error_description")?.takeIf { it.isNotBlank() }
-                                        ?: "Gagal masuk. Periksa email dan password."
-                                }
-                            }
-                        }
-                    })
-                }
-            }, enabled = !busy, modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)) {
-                if (busy) {
-                    androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = Night,
-                        strokeWidth = 2.dp
+
+    Box(Modifier.fillMaxSize().background(
+        Brush.radialGradient(listOf(Color(0xFF173B3B), Color(0xFF0A171C), Color(0xFF05090D)))
+    )) {
+        Box(Modifier.align(Alignment.TopEnd).padding(top = 74.dp, end = 12.dp)
+            .size(190.dp).clip(CircleShape).background(Color(0xFF64E8C7).copy(alpha = 0.045f)))
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            BrandMark(76.dp)
+            Spacer(Modifier.height(18.dp))
+            Text("ChatVerse", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp)
+            Text("BEYOND MESSAGING", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+            Spacer(Modifier.height(30.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
+                    .background(Color.White.copy(alpha = 0.075f))
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
+                Text(if (isRegister) "Create your space" else "Welcome back",
+                    color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text(if (isRegister) "Buat akun dan mulai terhubung." else "Your conversations, all in one place.",
+                    color = Muted, fontSize = 13.sp)
+                if (isRegister) OutlinedTextField(
+                    value = username, onValueChange = { username = it }, label = { Text("Username") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
+                        focusedLabelColor = Mint, unfocusedLabelColor = Muted, cursorColor = Mint
                     )
-                    Spacer(Modifier.width(9.dp))
+                )
+                OutlinedTextField(
+                    value = email, onValueChange = { email = it }, label = { Text("Email address") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
+                        focusedLabelColor = Mint, unfocusedLabelColor = Muted, cursorColor = Mint
+                    )
+                )
+                OutlinedTextField(
+                    value = password, onValueChange = { password = it }, label = { Text("Password") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
+                        focusedLabelColor = Mint, unfocusedLabelColor = Muted, cursorColor = Mint
+                    )
+                )
+                if (message.isNotBlank()) Text(message, color = Color(0xFFFFB4AB), fontSize = 12.sp)
+                Button(
+                    onClick = {
+                        if (email.isBlank() || password.length < 6 || (isRegister && username.isBlank())) {
+                            message = "Isi semua data. Password minimal 6 karakter."
+                        } else {
+                            busy = true
+                            message = "Menghubungkan ke ChatVerse..."
+                            val payload = JSONObject().put("email", email.trim()).put("password", password)
+                            if (isRegister) payload.put("data", JSONObject().put("username", username.trim()).put("display_name", username.trim()))
+                            val endpoint = if (isRegister) "signup" else "token?grant_type=password"
+                            val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/auth/v1/" + endpoint)
+                                .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                                .addHeader("Content-Type", "application/json")
+                                .post(payload.toString().toRequestBody(jsonType)).build()
+                            httpClient.newCall(request).enqueue(object : Callback {
+                                override fun onFailure(call: Call, e: IOException) {
+                                    (context as? ComponentActivity)?.runOnUiThread {
+                                        busy = false
+                                        message = "Koneksi gagal: periksa internet lalu coba lagi."
+                                    }
+                                }
+                                override fun onResponse(call: Call, response: Response) {
+                                    val body = response.body?.string().orEmpty()
+                                    val result = runCatching { JSONObject(body) }.getOrNull()
+                                    val token = result?.optString("access_token").orEmpty()
+                                    (context as? ComponentActivity)?.runOnUiThread {
+                                        busy = false
+                                        if (response.isSuccessful && token.isNotBlank()) {
+                                            prefs.edit().putString("access_token", token).putString("email", email.trim()).apply()
+                                            accessToken = token
+                                            message = ""
+                                        } else if (response.isSuccessful && isRegister) {
+                                            message = "Akun dibuat. Cek email untuk konfirmasi, lalu masuk."
+                                            isRegister = false
+                                        } else {
+                                            message = result?.optString("msg")?.takeIf { it.isNotBlank() }
+                                                ?: result?.optString("message")?.takeIf { it.isNotBlank() }
+                                                ?: result?.optString("error_description")?.takeIf { it.isNotBlank() }
+                                                ?: "Gagal masuk. Periksa email dan password."
+                                        }
+                                    }
+                                }
+                            })
+                        }
+                    },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)
+                ) {
+                    if (busy) {
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = Night, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(9.dp))
+                    }
+                    Text(if (busy) "Connecting..." else if (isRegister) "Create account" else "Sign in",
+                        fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
-                Text(if (busy) "Connecting..." else if (isRegister) "Create account" else "Sign in", fontWeight = FontWeight.Bold)
+                TextButton(onClick = { isRegister = !isRegister; message = "" },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                    Text(if (isRegister) "Already have an account? Sign in" else "New to ChatVerse? Create account",
+                        color = Cyan, fontSize = 13.sp)
+                }
             }
-            TextButton(onClick = { isRegister = !isRegister; message = "" }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Text(if (isRegister) "Already have an account? Sign in" else "New here? Create account", color = Cyan)
-            }
-            Text("Developer: Zakss", color = Muted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Spacer(Modifier.height(20.dp))
+            Text("Developer: Zakss", color = Muted.copy(alpha = 0.7f), fontSize = 11.sp)
         }
     }
 }
-
 private val Night = Color(0xFF071014)
 private val Panel = Color(0xFF142329)
 private val Mint = Color(0xFF68E5C1)
@@ -329,25 +393,16 @@ private fun Header() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
-            Text(
-                "ChatVerse",
-                color = Color.White,
-                fontSize = 27.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                "Beyond Messaging",
-                color = Muted,
-                fontSize = 12.sp,
-                letterSpacing = 1.2.sp
-            )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BrandMark(48.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("ChatVerse", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
+                Text("Beyond Messaging", color = Mint, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
         Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF1C3940))
+            modifier = Modifier.size(46.dp).clip(CircleShape)
+                .background(Brush.linearGradient(listOf(Color(0xFF244B4C), Color(0xFF13272E))))
                 .clickable { },
             contentAlignment = Alignment.Center
         ) {
@@ -355,7 +410,6 @@ private fun Header() {
         }
     }
 }
-
 private data class SearchProfile(val id: String, val username: String, val displayName: String)
 private data class ConversationPreview(val id: String, val type: String, val title: String, val peerId: String, val peerUsername: String, val peerName: String, val lastMessage: String)
 
