@@ -1578,9 +1578,10 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Spacer(Modifier.height(20.dp))
     FeatureCard("Account security", "Akun terhubung ke Supabase Auth.")
     Spacer(Modifier.height(12.dp))
-    Button(onClick = onLogout, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF633C43))) {
-        Text("Sign out", color = Color.White)
-    }
+    AnimatedActionButton(
+        label = "Sign out",
+        modifier = Modifier.fillMaxWidth()
+    ) { onLogout() }
 }
 @Composable
 private fun FeatureCard(title: String, subtitle: String) {
