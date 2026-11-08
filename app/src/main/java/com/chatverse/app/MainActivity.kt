@@ -24,14 +24,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,6 +83,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -288,10 +293,12 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 Spacer(Modifier.height(22.dp))
                 Header()
                 Spacer(Modifier.height(28.dp))
-                when (selectedTab) {
-                    0 -> ChatsHubScreen(accessToken)
-                    1 -> GroupsScreen(accessToken)
-                    else -> ProfileScreen(accessToken, onLogout)
+                Crossfade(targetState = selectedTab, label = "mainTabTransition") { tab ->
+                    when (tab) {
+                        0 -> ChatsHubScreen(accessToken)
+                        1 -> GroupsScreen(accessToken)
+                        else -> ProfileScreen(accessToken, onLogout)
+                    }
                 }
                 Spacer(Modifier.height(100.dp))
             }
@@ -1535,14 +1542,22 @@ private fun NavigationItem(
     onSelect: (Int) -> Unit
 ) {
     val active = selected == index
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(),
+        label = "navPressScale"
+    )
     val tint by animateColorAsState(if (active) Mint else Muted, label = "navTint")
     val horizontalPadding by animateDpAsState(if (active) 17.dp else 12.dp, label = "navPadding")
 
     Row(
         modifier = Modifier
+            .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(18.dp))
             .background(if (active) Color(0xFF294B4B) else Color.Transparent)
-            .clickable { onSelect(index) }
+            .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) }
             .padding(horizontal = horizontalPadding, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
