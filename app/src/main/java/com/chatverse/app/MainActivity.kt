@@ -799,6 +799,7 @@ private fun GlobalChatScreen(accessToken: String) {
     var draft by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Menghubungkan ke Global Chat...") }
     var sending by remember { mutableStateOf(false) }
+    var loadingMessages by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken) {
@@ -831,7 +832,11 @@ private fun GlobalChatScreen(accessToken: String) {
                         loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content")))
                     }
                     messages = loaded
-                } else status = "Gagal memuat pesan (${result.first})."
+                    loadingMessages = false
+                } else {
+                    status = "Gagal memuat pesan (${result.first})."
+                    loadingMessages = false
+                }
                 delay(4000)
             }
         } catch (_: Exception) {
@@ -843,6 +848,17 @@ private fun GlobalChatScreen(accessToken: String) {
     Spacer(Modifier.height(5.dp))
     Text(status, color = Mint, fontSize = 11.sp)
     Spacer(Modifier.height(14.dp))
+    if (loadingMessages && conversationId.isNotBlank()) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = Mint,
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(9.dp))
+            Text("Memuat pesan global...", color = Muted, fontSize = 12.sp)
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxWidth().height(430.dp),
         contentPadding = PaddingValues(vertical = 8.dp),
