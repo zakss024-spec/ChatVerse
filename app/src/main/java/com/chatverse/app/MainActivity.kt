@@ -1514,8 +1514,17 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = username, onValueChange = { username = it.lowercase().replace(" ", "") }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = bio, onValueChange = { bio = it.take(160) }, label = { Text("Bio (maks. 160 karakter)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-    Button(onClick = { saving = true }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-        Text(if (saving) "Menyimpan..." else "Simpan profil")
+    Button(onClick = { saving = true }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)) {
+        if (saving) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(17.dp),
+                color = Night,
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(9.dp))
+        }
+        Text(if (saving) "Menyimpan..." else "Simpan profil", fontWeight = FontWeight.SemiBold)
     }
     LaunchedEffect(saving) {
         if (saving && userId.isNotBlank()) {
