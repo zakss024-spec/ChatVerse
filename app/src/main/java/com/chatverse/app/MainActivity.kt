@@ -323,7 +323,7 @@ private fun GlobalChatScreen(accessToken: String) {
     Text(status, color = Mint, fontSize = 11.sp)
     Spacer(Modifier.height(14.dp))
     LazyColumn(
-        modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().height(430.dp),
         contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
