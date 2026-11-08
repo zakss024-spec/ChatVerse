@@ -447,14 +447,22 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             myUserId = JSONObject(user.second).optString("id")
             while (true) {
                 // Update this member's read cursor without exposing another user's membership data.
-                supabaseCall("/rest/v1/rpc/mark_conversation_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
-                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content&order=created_at.asc&limit=100", accessToken)
+                supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
+                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
                     val loaded = mutableListOf<GlobalMessage>()
                     for (i in 0 until array.length()) {
                         val row = array.getJSONObject(i)
-                        loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content")))
+                        val receipts = row.optJSONArray("message_receipts") ?: org.json.JSONArray()
+                        var delivered = false
+                        var read = false
+                        for (r in 0 until receipts.length()) {
+                            val receipt = receipts.optJSONObject(r) ?: continue
+                            if (receipt.optString("delivered_at").isNotBlank() && receipt.optString("delivered_at") != "null") delivered = true
+                            if (receipt.optString("read_at").isNotBlank() && receipt.optString("read_at") != "null") read = true
+                        }
+                        loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content"), read, delivered))
                     }
                     messages = loaded
                     status = "Pesan diperbarui otomatis"
@@ -474,7 +482,17 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             val mine = item.senderId == myUserId
             Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                 Box(Modifier.clip(RoundedCornerShape(17.dp)).background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
-                    Text(item.content, color = Color.White, fontSize = 14.sp)
+                    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                        Text(item.content, color = Color.White, fontSize = 14.sp)
+                        if (mine) {
+                            Text(
+                                if (item.isRead) "Read" else if (item.isDelivered) "Delivered" else "Sent",
+                                color = if (item.isRead) Mint else Muted,
+                                fontSize = 9.sp,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -501,7 +519,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     }
 }
 
-private data class GlobalMessage(val id: String, val senderId: String, val content: String)
+private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false)
 
 @Composable
 private fun GlobalChatScreen(accessToken: String) {
