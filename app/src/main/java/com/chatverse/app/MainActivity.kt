@@ -949,6 +949,8 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     var draft by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Menghubungkan...") }
     var sending by remember { mutableStateOf(false) }
+    var members by remember { mutableStateOf(listOf<Pair<String, String>>()) }
+    var showMembers by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -960,6 +962,19 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
             }
             myUserId = JSONObject(user.second).optString("id")
             while (true) {
+                val memberResponse = supabaseCall("/rest/v1/conversation_members?conversation_id=eq." + conversationId + "&select=user_id,role,profiles(username,display_name)&order=created_at.asc", accessToken)
+                if (memberResponse.first in 200..299) {
+                    val memberRows = org.json.JSONArray(memberResponse.second)
+                    val loadedMembers = mutableListOf<Pair<String, String>>()
+                    for (i in 0 until memberRows.length()) {
+                        val row = memberRows.getJSONObject(i)
+                        val profile = row.optJSONObject("profiles")
+                        val display = profile?.optString("display_name").orEmpty().ifBlank { profile?.optString("username").orEmpty() }
+                        val role = row.optString("role", "member")
+                        loadedMembers.add((if (display.isBlank()) "User " + row.optString("user_id").take(6) else display) to role)
+                    }
+                    members = loadedMembers
+                }
                 val result = supabaseCall("/rest/v1/messages?conversation_id=eq." + conversationId + "&select=id,sender_id,content,deleted_at&order=created_at.asc&limit=150", accessToken)
                 if (result.first in 200..299) {
                     val rows = org.json.JSONArray(result.second)
@@ -978,6 +993,30 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
 
     Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
     Text(status, color = Mint, fontSize = 11.sp)
+    TextButton(onClick = { showMembers = !showMembers }) {
+        Text(if (showMembers) "Sembunyikan anggota • " + members.size else "Lihat anggota • " + members.size, color = Cyan)
+    }
+    if (showMembers) {
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp),
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Anggota grup", color = Color.White, fontWeight = FontWeight.SemiBold)
+                if (members.isEmpty()) Text("Belum ada data anggota.", color = Muted, fontSize = 12.sp)
+                members.forEach { member ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF24564F)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Person, contentDescription = null, tint = Mint, modifier = Modifier.size(17.dp))
+                        }
+                        Spacer(Modifier.width(9.dp))
+                        Text(member.first, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Text(if (member.second == "admin") "ADMIN" else "MEMBER",
+                            color = if (member.second == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+    }
     Spacer(Modifier.height(8.dp))
     LazyColumn(Modifier.fillMaxWidth().height(390.dp), contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
