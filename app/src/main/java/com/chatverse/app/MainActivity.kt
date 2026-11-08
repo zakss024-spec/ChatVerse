@@ -110,11 +110,11 @@ private suspend fun uploadChatMedia(context: Context, accessToken: String, conve
             if (cursor.moveToFirst()) cursor.getString(0) else null
         } ?: "attachment"
         val safeName = rawName.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(80).ifBlank { "attachment" }
-        val path = "\$conversationId/\$userId/\${System.currentTimeMillis()}_\$safeName"
+        val path = "$conversationId/$userId/${System.currentTimeMillis()}_$safeName"
         val encodedPath = path.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
         val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/storage/v1/object/chat-media/" + encodedPath)
             .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-            .addHeader("Authorization", "Bearer \$accessToken").addHeader("Content-Type", mime)
+            .addHeader("Authorization", "Bearer $accessToken").addHeader("Content-Type", mime)
             .addHeader("x-upsert", "false").post(bytes.toRequestBody(mime.toMediaType())).build()
         httpClient.newCall(request).execute().use { response -> if (!response.isSuccessful) return@withContext null }
         UploadedChatMedia(path, mime, bytes.size.toLong(), safeName)
@@ -125,7 +125,7 @@ private suspend fun openChatMedia(context: Context, accessToken: String, path: S
         val encodedPath = path.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
         val body = JSONObject().put("expiresIn", 3600).toString().toRequestBody(jsonType)
         val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/storage/v1/object/sign/chat-media/" + encodedPath)
-            .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY).addHeader("Authorization", "Bearer \$accessToken")
+            .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY).addHeader("Authorization", "Bearer $accessToken")
             .addHeader("Content-Type", "application/json").post(body).build()
         val signedUrl = httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return@withContext false
@@ -787,7 +787,7 @@ private fun GlobalChatScreen(accessToken: String) {
             myUserId = JSONObject(user.second).optString("id")
             val room = supabaseCall("/rest/v1/conversations?type=eq.global&title=eq.ChatVerse%20Global&select=id&limit=1", accessToken)
             if (room.first !in 200..299) {
-                status = "Tidak dapat membuka ruang global (\${room.first})."
+                status = "Tidak dapat membuka ruang global (${room.first})."
                 return@LaunchedEffect
             }
             val rooms = org.json.JSONArray(room.second)
@@ -807,7 +807,7 @@ private fun GlobalChatScreen(accessToken: String) {
                         loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content")))
                     }
                     messages = loaded
-                } else status = "Gagal memuat pesan (\${result.first})."
+                } else status = "Gagal memuat pesan (${result.first})."
                 delay(4000)
             }
         } catch (_: Exception) {
@@ -851,7 +851,7 @@ private fun GlobalChatScreen(accessToken: String) {
                         if (result.first in 200..299) {
                             draft = ""
                             status = "Pesan terkirim"
-                        } else status = "Pesan gagal dikirim (\${result.first})."
+                        } else status = "Pesan gagal dikirim (${result.first})."
                     } catch (_: Exception) {
                         status = "Gagal mengirim. Periksa koneksi."
                     } finally {
