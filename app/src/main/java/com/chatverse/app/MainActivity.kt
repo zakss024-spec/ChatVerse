@@ -461,11 +461,6 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 return@LaunchedEffect
             }
             myUserId = JSONObject(user.second).optString("id")
-            val groupInfo = supabaseCall("/rest/v1/conversations?id=eq." + conversationId + "&select=created_by", accessToken)
-            if (groupInfo.first in 200..299) {
-                val groupRows = org.json.JSONArray(groupInfo.second)
-                if (groupRows.length() > 0) groupCreatorId = groupRows.getJSONObject(0).optString("created_by")
-            }
             while (true) {
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
@@ -984,6 +979,11 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                 return@LaunchedEffect
             }
             myUserId = JSONObject(user.second).optString("id")
+            val groupInfo = supabaseCall("/rest/v1/conversations?id=eq." + conversationId + "&select=created_by", accessToken)
+            if (groupInfo.first in 200..299) {
+                val groupRows = org.json.JSONArray(groupInfo.second)
+                if (groupRows.length() > 0) groupCreatorId = groupRows.getJSONObject(0).optString("created_by")
+            }
             while (true) {
                 val memberResponse = supabaseCall("/rest/v1/conversation_members?conversation_id=eq." + conversationId + "&select=user_id,role,profiles(username,display_name)&order=joined_at.asc", accessToken)
                 if (memberResponse.first in 200..299) {
