@@ -241,7 +241,15 @@ private fun AuthGate() {
                 }
             }, enabled = !busy, modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)) {
-                Text(if (busy) "Please wait..." else if (isRegister) "Create account" else "Sign in", fontWeight = FontWeight.Bold)
+                if (busy) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Night,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(9.dp))
+                }
+                Text(if (busy) "Connecting..." else if (isRegister) "Create account" else "Sign in", fontWeight = FontWeight.Bold)
             }
             TextButton(onClick = { isRegister = !isRegister; message = "" }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                 Text(if (isRegister) "Already have an account? Sign in" else "New here? Create account", color = Cyan)
