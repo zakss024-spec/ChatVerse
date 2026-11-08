@@ -944,7 +944,7 @@ private fun GroupsScreen(accessToken: String) {
 }
 
 @Composable
-private fun GroupChatScreen(accessToken: String, conversationId: String, title: String) {
+private fun GroupChatScreen(accessToken: String, conversationId: String, title: String, onLeave: () -> Unit) {
     var myUserId by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf(listOf<GlobalMessage>()) }
     var draft by remember { mutableStateOf("") }
@@ -962,6 +962,8 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     var renameDraft by remember { mutableStateOf(title) }
     var pendingRoleChange by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     var changingRole by remember { mutableStateOf(false) }
+    var showLeaveDialog by remember { mutableStateOf(false) }
+    var leavingGroup by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -1010,6 +1012,9 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         }
     }
     Text(status, color = Mint, fontSize = 11.sp)
+    TextButton(onClick = { showLeaveDialog = true }) {
+        Text("Keluar dari grup", color = Color(0xFFFF9A9A), fontSize = 11.sp)
+    }
     TextButton(onClick = { showMembers = !showMembers }) {
         Text(if (showMembers) "Sembunyikan anggota • " + members.size else "Lihat anggota • " + members.size, color = Cyan)
     }
@@ -1116,6 +1121,34 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                 }) { Text("Simpan", color = Mint) }
             },
             dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text("Batal") } }
+        )
+    }
+    if (showLeaveDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!leavingGroup) showLeaveDialog = false },
+            title = { Text("Keluar dari grup?") },
+            text = { Text("Kamu akan dikeluarkan dari daftar anggota dan tidak bisa lagi membaca atau mengirim pesan grup ini. Pembuat grup harus memindahkan kepemilikan atau menghapus grup terlebih dahulu.") },
+            confirmButton = {
+                TextButton(enabled = !leavingGroup, onClick = {
+                    leavingGroup = true
+                    scope.launch {
+                        try {
+                            val payload = JSONObject().put("p_conversation_id", conversationId)
+                            val result = supabaseCall("/rest/v1/rpc/leave_group_conversation", accessToken, "POST", payload)
+                            if (result.first in 200..299) {
+                                showLeaveDialog = false
+                                onLeave()
+                            } else {
+                                status = "Tidak dapat keluar dari grup (" + result.first + "). Jika kamu pembuat grup, pindahkan kepemilikan atau hapus grup terlebih dahulu."
+                            }
+                        } catch (_: Exception) { status = "Tidak dapat keluar dari grup. Periksa koneksi." }
+                        finally { leavingGroup = false }
+                    }
+                }) { Text(if (leavingGroup) "Memproses..." else "Keluar", color = Color(0xFFFF7777)) }
+            },
+            dismissButton = {
+                TextButton(enabled = !leavingGroup, onClick = { showLeaveDialog = false }) { Text("Batal") }
+            }
         )
     }
     if (pendingRoleChange != null) {
