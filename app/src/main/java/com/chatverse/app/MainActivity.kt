@@ -456,6 +456,13 @@ private fun ChatsHubScreen(accessToken: String) {
         singleLine = true,
         placeholder = { Text("Cari username...") }
     )
+    val searchInteractionSource = remember { MutableInteractionSource() }
+    val searchPressed by searchInteractionSource.collectIsPressedAsState()
+    val searchScale by animateFloatAsState(
+        targetValue = if (searchPressed) 0.96f else 1f,
+        animationSpec = spring(),
+        label = "searchButtonPress"
+    )
     Button(
         onClick = {
             searching = true
@@ -482,7 +489,8 @@ private fun ChatsHubScreen(accessToken: String) {
             }
         },
         enabled = query.length >= 2 && !searching,
-        modifier = Modifier.fillMaxWidth()
+        interactionSource = searchInteractionSource,
+        modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = searchScale, scaleY = searchScale)
     ) { Text(if (searching) "Searching..." else "Search users") }
     Spacer(Modifier.height(8.dp))
     Text(status, color = Muted, fontSize = 12.sp)
