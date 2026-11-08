@@ -850,10 +850,15 @@ private fun GlobalChatScreen(accessToken: String) {
     ) {
         items(messages, key = { it.id }) { message ->
             val mine = message.senderId == myUserId
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
-                Text(if (mine) "You" else "User " + message.senderId.take(6), color = if (mine) Mint else Cyan, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp))
-                Box(Modifier.clip(RoundedCornerShape(17.dp)).background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
-                    Text(message.content, color = Color.White, fontSize = 14.sp)
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 10 })
+            ) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                    Text(if (mine) "You" else "User " + message.senderId.take(6), color = if (mine) Mint else Cyan, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                    Box(Modifier.clip(RoundedCornerShape(17.dp)).background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
+                        Text(message.content, color = Color.White, fontSize = 14.sp)
+                    }
                 }
             }
         }
@@ -863,8 +868,9 @@ private fun GlobalChatScreen(accessToken: String) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(value = draft, onValueChange = { draft = it.take(2000) }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
         Spacer(Modifier.width(8.dp))
-        Button(
+        AnimatedSendButton(
             enabled = draft.isNotBlank() && !sending && conversationId.isNotBlank() && myUserId.isNotBlank(),
+            sending = sending,
             onClick = {
                 val textToSend = draft.trim()
                 sending = true
@@ -883,7 +889,7 @@ private fun GlobalChatScreen(accessToken: String) {
                     }
                 }
             }
-        ) { Text(if (sending) "..." else "Send") }
+        )
     }
 }
 
