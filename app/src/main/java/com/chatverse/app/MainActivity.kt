@@ -1005,7 +1005,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                 members.forEach { member ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF24564F)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Person, contentDescription = null, tint = Mint, modifier = Modifier.size(17.dp))
+                            Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(17.dp))
                         }
                         Spacer(Modifier.width(9.dp))
                         Text(member.first, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
