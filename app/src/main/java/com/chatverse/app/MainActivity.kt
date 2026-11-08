@@ -10,6 +10,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
@@ -67,6 +70,22 @@ import androidx.compose.ui.unit.sp
 private val httpClient = OkHttpClient()
 private val jsonType = "application/json; charset=utf-8".toMediaType()
 
+private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null): Pair<Int, String> =
+    withContext(Dispatchers.IO) {
+        val builder = Request.Builder().url(BuildConfig.SUPABASE_URL + path)
+            .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            .addHeader("Authorization", "Bearer " + token)
+            .addHeader("Content-Type", "application/json")
+        when (method) {
+            "PATCH" -> builder.patch((payload ?: JSONObject()).toString().toRequestBody(jsonType))
+            "POST" -> builder.post((payload ?: JSONObject()).toString().toRequestBody(jsonType))
+            else -> builder.get()
+        }
+        httpClient.newCall(builder.build()).execute().use { response ->
+            response.code to response.body?.string().orEmpty()
+        }
+    }
+
 @Composable
 private fun AuthGate() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -80,7 +99,10 @@ private fun AuthGate() {
     var message by remember { mutableStateOf("") }
 
     if (accessToken != null) {
-        ChatVerseApp()
+        ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
+            prefs.edit().clear().apply()
+            accessToken = null
+        })
         return
     }
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF10242A), Night, Color(0xFF080D12)))).padding(24.dp), contentAlignment = Alignment.Center) {
@@ -166,7 +188,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun ChatVerseApp() {
+private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Surface(
@@ -193,7 +215,7 @@ private fun ChatVerseApp() {
                 when (selectedTab) {
                     0 -> ChatsScreen()
                     1 -> GroupsScreen()
-                    else -> ProfileScreen()
+                    else -> ProfileScreen(accessToken, onLogout)
                 }
                 Spacer(Modifier.height(100.dp))
             }
@@ -346,14 +368,68 @@ private fun GroupsScreen() {
 }
 
 @Composable
-private fun ProfileScreen() {
-    Text("Your profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(20.dp))
-    FeatureCard("Set up your profile", "Add a name, photo, and a short bio.")
-    Spacer(Modifier.height(12.dp))
-    FeatureCard("Privacy & security", "Manage your account and conversation settings.")
-}
+private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
+    var userId by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var bio by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Memuat profil...") }
+    var saving by remember { mutableStateOf(false) }
 
+    LaunchedEffect(accessToken) {
+        try {
+            val userResult = supabaseCall("/auth/v1/user", accessToken)
+            if (userResult.first !in 200..299) {
+                status = "Sesi tidak valid. Silakan keluar lalu masuk kembali."
+            } else {
+                val id = JSONObject(userResult.second).optString("id")
+                userId = id
+                val profileResult = supabaseCall("/rest/v1/profiles?id=eq.\$id&select=id,username,display_name,bio", accessToken)
+                if (profileResult.first in 200..299) {
+                    val rows = org.json.JSONArray(profileResult.second)
+                    if (rows.length() > 0) {
+                        val row = rows.getJSONObject(0)
+                        username = row.optString("username")
+                        displayName = row.optString("display_name")
+                        bio = row.optString("bio")
+                        status = "Profil tersinkron"
+                    } else status = "Profil belum tersedia."
+                } else status = "Gagal memuat profil (\${profileResult.first})."
+            }
+        } catch (_: Exception) {
+            status = "Tidak dapat terhubung. Periksa internet."
+        }
+    }
+
+    Text("Your profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(8.dp))
+    Text(status, color = Mint, fontSize = 12.sp)
+    Spacer(Modifier.height(16.dp))
+    OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = username, onValueChange = { username = it.lowercase().replace(" ", "") }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = bio, onValueChange = { bio = it.take(160) }, label = { Text("Bio (maks. 160 karakter)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+    Button(onClick = { saving = true }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+        Text(if (saving) "Menyimpan..." else "Simpan profil")
+    }
+    LaunchedEffect(saving) {
+        if (saving && userId.isNotBlank()) {
+            try {
+                val body = JSONObject().put("display_name", displayName.trim()).put("username", username.trim()).put("bio", bio.trim())
+                val result = supabaseCall("/rest/v1/profiles?id=eq.\$userId", accessToken, "PATCH", body)
+                status = if (result.first in 200..299) "Profil berhasil disimpan." else "Gagal menyimpan (\${result.first}). Username mungkin sudah dipakai."
+            } catch (_: Exception) {
+                status = "Gagal menyimpan. Periksa koneksi."
+            }
+            saving = false
+        }
+    }
+    Spacer(Modifier.height(20.dp))
+    FeatureCard("Account security", "Akun terhubung ke Supabase Auth.")
+    Spacer(Modifier.height(12.dp))
+    Button(onClick = onLogout, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF633C43))) {
+        Text("Sign out", color = Color.White)
+    }
+}
 @Composable
 private fun FeatureCard(title: String, subtitle: String) {
     Card(
