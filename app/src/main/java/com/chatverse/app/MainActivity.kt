@@ -954,6 +954,9 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     var showMembers by remember { mutableStateOf(false) }
     var pendingRemoval by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     var removingMember by remember { mutableStateOf(false) }
+    var memberSearch by remember { mutableStateOf("") }
+    var memberSearchResults by remember { mutableStateOf(listOf<SearchProfile>()) }
+    var addingMemberId by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -1017,6 +1020,56 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                             color = if (member.third == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         if (myRole == "admin" && member.third == "member") {
                             TextButton(onClick = { pendingRemoval = member }) { Text("Keluarkan", color = Color(0xFFFF9A9A), fontSize = 10.sp) }
+                        }
+                    }
+                }
+                if (myRole == "admin") {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Tambah anggota", color = Mint, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    OutlinedTextField(value = memberSearch, onValueChange = {
+                        memberSearch = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30)
+                    }, label = { Text("Cari username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = {
+                        scope.launch {
+                            try {
+                                val encoded = URLEncoder.encode(memberSearch.trim(), "UTF-8")
+                                val response = supabaseCall("/rest/v1/profiles?username=ilike.*" + encoded + "*&select=id,username,display_name&limit=15", accessToken)
+                                if (response.first in 200..299) {
+                                    val rows = org.json.JSONArray(response.second)
+                                    val found = mutableListOf<SearchProfile>()
+                                    for (i in 0 until rows.length()) {
+                                        val row = rows.getJSONObject(i)
+                                        val id = row.optString("id")
+                                        if (members.none { it.first == id } && id != myUserId) {
+                                            found.add(SearchProfile(id, row.optString("username"), row.optString("display_name")))
+                                        }
+                                    }
+                                    memberSearchResults = found
+                                    status = if (found.isEmpty()) "Tidak ada pengguna baru yang cocok." else "Pilih pengguna untuk ditambahkan."
+                                } else status = "Pencarian anggota gagal."
+                            } catch (_: Exception) { status = "Tidak dapat mencari pengguna." }
+                        }
+                    }, enabled = memberSearch.length >= 2, modifier = Modifier.fillMaxWidth()) { Text("Cari pengguna") }
+                    memberSearchResults.forEach { person ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(person.displayName.ifBlank { person.username }, color = Color.White, fontSize = 12.sp)
+                                Text("@" + person.username, color = Muted, fontSize = 10.sp)
+                            }
+                            TextButton(enabled = addingMemberId.isBlank(), onClick = {
+                                addingMemberId = person.id
+                                scope.launch {
+                                    try {
+                                        val payload = JSONObject().put("p_conversation_id", conversationId).put("p_member_id", person.id)
+                                        val result = supabaseCall("/rest/v1/rpc/add_group_member", accessToken, "POST", payload)
+                                        if (result.first in 200..299) {
+                                            memberSearchResults = memberSearchResults.filterNot { it.id == person.id }
+                                            status = "Anggota berhasil ditambahkan."
+                                        } else status = "Gagal menambahkan anggota (" + result.first + ")."
+                                    } catch (_: Exception) { status = "Tidak dapat menambahkan anggota." }
+                                    finally { addingMemberId = "" }
+                                }
+                            }) { Text(if (addingMemberId == person.id) "..." else "Tambah", color = Mint, fontSize = 11.sp) }
                         }
                     }
                 }
