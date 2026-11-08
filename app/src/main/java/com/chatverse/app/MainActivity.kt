@@ -1,6 +1,15 @@
 package com.chatverse.app
 
 import android.os.Bundle
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import org.json.JSONObject
+import java.io.IOException
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
@@ -49,6 +58,91 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+
+private val httpClient = OkHttpClient()
+private val jsonType = "application/json; charset=utf-8".toMediaType()
+
+@Composable
+private fun AuthGate() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("chatverse_session", android.content.Context.MODE_PRIVATE) }
+    var accessToken by remember { mutableStateOf(prefs.getString("access_token", null)) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var isRegister by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+
+    if (accessToken != null) {
+        ChatVerseApp()
+        return
+    }
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF10242A), Night, Color(0xFF080D12)))).padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("ChatVerse", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Text("Beyond Messaging", color = Mint, fontSize = 13.sp, letterSpacing = 1.3.sp)
+            Spacer(Modifier.height(12.dp))
+            Text(if (isRegister) "Create your account" else "Welcome back", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            if (isRegister) OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            if (message.isNotBlank()) Text(message, color = Color(0xFFFFB4AB), fontSize = 12.sp)
+            Button(onClick = {
+                if (email.isBlank() || password.length < 6 || (isRegister && username.isBlank())) {
+                    message = "Isi semua data. Password minimal 6 karakter."
+                } else {
+                    busy = true
+                    message = "Menghubungkan ke ChatVerse..."
+                    val payload = JSONObject().put("email", email.trim()).put("password", password)
+                    if (isRegister) payload.put("data", JSONObject().put("username", username.trim()).put("display_name", username.trim()))
+                    val endpoint = if (isRegister) "signup" else "token?grant_type=password"
+                    val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/auth/v1/" + endpoint)
+                        .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                        .addHeader("Content-Type", "application/json")
+                        .post(payload.toString().toRequestBody(jsonType)).build()
+                    httpClient.newCall(request).enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            (context as? ComponentActivity)?.runOnUiThread {
+                                busy = false
+                                message = "Koneksi gagal: periksa internet lalu coba lagi."
+                            }
+                        }
+                        override fun onResponse(call: Call, response: Response) {
+                            val body = response.body?.string().orEmpty()
+                            val result = runCatching { JSONObject(body) }.getOrNull()
+                            val token = result?.optString("access_token").orEmpty()
+                            (context as? ComponentActivity)?.runOnUiThread {
+                                busy = false
+                                if (response.isSuccessful && token.isNotBlank()) {
+                                    prefs.edit().putString("access_token", token).putString("email", email.trim()).apply()
+                                    accessToken = token
+                                    message = ""
+                                } else if (response.isSuccessful && isRegister) {
+                                    message = "Akun dibuat. Cek email untuk konfirmasi, lalu masuk."
+                                    isRegister = false
+                                } else {
+                                    message = result?.optString("msg")?.takeIf { it.isNotBlank() }
+                                        ?: result?.optString("message")?.takeIf { it.isNotBlank() }
+                                        ?: result?.optString("error_description")?.takeIf { it.isNotBlank() }
+                                        ?: "Gagal masuk. Periksa email dan password."
+                                }
+                            }
+                        }
+                    })
+                }
+            }, enabled = !busy, modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)) {
+                Text(if (busy) "Please wait..." else if (isRegister) "Create account" else "Sign in", fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = { isRegister = !isRegister; message = "" }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text(if (isRegister) "Already have an account? Sign in" else "New here? Create account", color = Cyan)
+            }
+            Text("Developer: Zakss", color = Muted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+        }
+    }
+}
+
 private val Night = Color(0xFF071014)
 private val Panel = Color(0xFF142329)
 private val Mint = Color(0xFF68E5C1)
@@ -60,7 +154,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                ChatVerseApp()
+                AuthGate()
             }
         }
     }
