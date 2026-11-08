@@ -1002,6 +1002,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         } catch (_: Exception) { status = "Koneksi terputus. Periksa internet." }
     }
 
+    val myRole = members.firstOrNull { it.first == myUserId }?.third.orEmpty()
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(groupTitle, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         if (myRole == "admin") {
@@ -1012,7 +1013,6 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     TextButton(onClick = { showMembers = !showMembers }) {
         Text(if (showMembers) "Sembunyikan anggota • " + members.size else "Lihat anggota • " + members.size, color = Cyan)
     }
-    val myRole = members.firstOrNull { it.first == myUserId }?.third.orEmpty()
     if (showMembers) {
         Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp),
             modifier = Modifier.fillMaxWidth()) {
