@@ -9,6 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -216,7 +217,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 Header()
                 Spacer(Modifier.height(28.dp))
                 when (selectedTab) {
-                    0 -> GlobalChatScreen(accessToken)
+                    0 -> ChatsHubScreen(accessToken)
                     1 -> GroupsScreen()
                     else -> ProfileScreen(accessToken, onLogout)
                 }
@@ -265,6 +266,177 @@ private fun Header() {
         ) {
             Text("Z", color = Mint, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
+    }
+}
+
+private data class SearchProfile(val id: String, val username: String, val displayName: String)
+
+@Composable
+private fun ChatsHubScreen(accessToken: String) {
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf(listOf<SearchProfile>()) }
+    var status by remember { mutableStateOf("Cari username untuk memulai chat pribadi.") }
+    var searching by remember { mutableStateOf(false) }
+    var activeId by remember { mutableStateOf("") }
+    var activeTitle by remember { mutableStateOf("") }
+    var showGlobal by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    if (showGlobal) {
+        Column {
+            TextButton(onClick = { showGlobal = false }) { Text("← Kembali ke Chats", color = Mint) }
+            GlobalChatScreen(accessToken)
+        }
+        return
+    }
+    if (activeId.isNotBlank()) {
+        Column {
+            TextButton(onClick = { activeId = ""; activeTitle = "" }) { Text("← Kembali ke Chats", color = Mint) }
+            DirectChatScreen(accessToken, activeId, activeTitle)
+        }
+        return
+    }
+
+    Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(8.dp))
+    Button(onClick = { showGlobal = true }, modifier = Modifier.fillMaxWidth()) { Text("Open ChatVerse Global") }
+    Spacer(Modifier.height(14.dp))
+    Text("New message", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(8.dp))
+    OutlinedTextField(
+        value = query,
+        onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        placeholder = { Text("Cari username...") }
+    )
+    Button(
+        onClick = {
+            searching = true
+            status = "Mencari pengguna..."
+            scope.launch {
+                try {
+                    val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+                    val response = supabaseCall("/rest/v1/profiles?username=ilike.*$encoded*&select=id,username,display_name&limit=20", accessToken)
+                    if (response.first in 200..299) {
+                        val array = org.json.JSONArray(response.second)
+                        val found = mutableListOf<SearchProfile>()
+                        for (i in 0 until array.length()) {
+                            val row = array.getJSONObject(i)
+                            found.add(SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name")))
+                        }
+                        results = found
+                        status = if (found.isEmpty()) "Pengguna tidak ditemukan." else "Pilih pengguna untuk membuka chat."
+                    } else status = "Pencarian gagal. Coba lagi."
+                } catch (_: Exception) {
+                    status = "Tidak dapat mencari pengguna. Periksa internet."
+                } finally {
+                    searching = false
+                }
+            }
+        },
+        enabled = query.length >= 2 && !searching,
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(if (searching) "Searching..." else "Search users") }
+    Spacer(Modifier.height(8.dp))
+    Text(status, color = Muted, fontSize = 12.sp)
+    LazyColumn(modifier = Modifier.fillMaxWidth().height(300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(results, key = { it.id }) { profile ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth().clickable {
+                    scope.launch {
+                        try {
+                            val body = JSONObject().put("p_other_user", profile.id)
+                            val response = supabaseCall("/rest/v1/rpc/open_direct_conversation", accessToken, "POST", body)
+                            if (response.first in 200..299) {
+                                activeId = response.second.trim().trim('"')
+                                activeTitle = profile.displayName.ifBlank { "@" + profile.username }
+                            } else status = "Tidak dapat membuka chat. Pastikan pengguna tidak memblokirmu."
+                        } catch (_: Exception) {
+                            status = "Gagal membuka chat. Periksa koneksi."
+                        }
+                    }
+                }
+            ) {
+                Column(Modifier.padding(15.dp)) {
+                    Text(profile.displayName.ifBlank { profile.username }, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("@" + profile.username, color = Mint, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DirectChatScreen(accessToken: String, conversationId: String, title: String) {
+    var messages by remember { mutableStateOf(listOf<GlobalMessage>()) }
+    var myUserId by remember { mutableStateOf("") }
+    var draft by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Memuat percakapan...") }
+    var sending by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(accessToken, conversationId) {
+        try {
+            val user = supabaseCall("/auth/v1/user", accessToken)
+            if (user.first !in 200..299) {
+                status = "Sesi login perlu diperbarui."
+                return@LaunchedEffect
+            }
+            myUserId = JSONObject(user.second).optString("id")
+            while (true) {
+                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content&order=created_at.asc&limit=100", accessToken)
+                if (response.first in 200..299) {
+                    val array = org.json.JSONArray(response.second)
+                    val loaded = mutableListOf<GlobalMessage>()
+                    for (i in 0 until array.length()) {
+                        val row = array.getJSONObject(i)
+                        loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content")))
+                    }
+                    messages = loaded
+                    status = "Pesan diperbarui otomatis"
+                } else status = "Gagal memuat pesan. Coba lagi."
+                delay(4000)
+            }
+        } catch (_: Exception) {
+            status = "Koneksi terputus. Periksa internet."
+        }
+    }
+
+    Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+    Text(status, color = Muted, fontSize = 11.sp)
+    Spacer(Modifier.height(8.dp))
+    LazyColumn(modifier = Modifier.fillMaxWidth().height(390.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        items(messages, key = { it.id }) { item ->
+            val mine = item.senderId == myUserId
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                Box(Modifier.clip(RoundedCornerShape(17.dp)).background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
+                    Text(item.content, color = Color.White, fontSize = 14.sp)
+                }
+            }
+        }
+        if (messages.isEmpty()) item { Text("Belum ada pesan. Sapa pengguna ini!", color = Muted, fontSize = 13.sp) }
+    }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(value = draft, onValueChange = { draft = it.take(2000) }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
+        Spacer(Modifier.width(8.dp))
+        Button(enabled = draft.isNotBlank() && !sending && myUserId.isNotBlank(), onClick = {
+            val content = draft.trim()
+            sending = true
+            scope.launch {
+                try {
+                    val body = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId).put("message_type", "text").put("content", content)
+                    val response = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
+                    if (response.first in 200..299) draft = "" else status = "Pesan gagal dikirim."
+                } catch (_: Exception) {
+                    status = "Gagal mengirim pesan."
+                } finally {
+                    sending = false
+                }
+            }
+        }) { Text(if (sending) "..." else "Send") }
     }
 }
 
