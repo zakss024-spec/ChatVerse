@@ -270,6 +270,7 @@ private fun Header() {
 }
 
 private data class SearchProfile(val id: String, val username: String, val displayName: String)
+private data class ConversationPreview(val id: String, val type: String, val title: String, val peerId: String, val peerUsername: String, val peerName: String, val lastMessage: String)
 
 @Composable
 private fun ChatsHubScreen(accessToken: String) {
@@ -280,7 +281,38 @@ private fun ChatsHubScreen(accessToken: String) {
     var activeId by remember { mutableStateOf("") }
     var activeTitle by remember { mutableStateOf("") }
     var showGlobal by remember { mutableStateOf(false) }
+    var inbox by remember { mutableStateOf(listOf<ConversationPreview>()) }
+    var inboxStatus by remember { mutableStateOf("Memuat daftar chat...") }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(accessToken) {
+        while (true) {
+            try {
+                val response = supabaseCall("/rest/v1/rpc/list_my_conversations", accessToken, "POST", JSONObject())
+                if (response.first in 200..299) {
+                    val array = org.json.JSONArray(response.second)
+                    val loaded = mutableListOf<ConversationPreview>()
+                    for (i in 0 until array.length()) {
+                        val row = array.getJSONObject(i)
+                        loaded.add(ConversationPreview(
+                            row.optString("conversation_id"),
+                            row.optString("conversation_type"),
+                            row.optString("conversation_title"),
+                            row.optString("peer_id"),
+                            row.optString("peer_username"),
+                            row.optString("peer_display_name"),
+                            row.optString("last_message")
+                        ))
+                    }
+                    inbox = loaded
+                    inboxStatus = if (loaded.isEmpty()) "Belum ada percakapan pribadi." else "Percakapan terbaru"
+                } else inboxStatus = "Daftar chat belum dapat dimuat."
+            } catch (_: Exception) {
+                inboxStatus = "Periksa koneksi untuk memuat chat."
+            }
+            delay(10000)
+        }
+    }
 
     if (showGlobal) {
         Column {
@@ -301,6 +333,33 @@ private fun ChatsHubScreen(accessToken: String) {
     Spacer(Modifier.height(8.dp))
     Button(onClick = { showGlobal = true }, modifier = Modifier.fillMaxWidth()) { Text("Open ChatVerse Global") }
     Spacer(Modifier.height(14.dp))
+    Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    Text(inboxStatus, color = Muted, fontSize = 11.sp)
+    LazyColumn(modifier = Modifier.fillMaxWidth().height(170.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        items(inbox, key = { it.id }) { item ->
+            val label = when {
+                item.type == "global" -> "ChatVerse Global"
+                item.type == "group" -> item.title.ifBlank { "Group chat" }
+                else -> item.peerName.ifBlank { "@" + item.peerUsername }
+            }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable {
+                    if (item.type == "global") showGlobal = true
+                    else {
+                        activeId = item.id
+                        activeTitle = label
+                    }
+                }
+            ) {
+                Column(Modifier.padding(13.dp)) {
+                    Text(label, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Muted, fontSize = 12.sp, maxLines = 1)
+                }
+            }
+        }
+    }
     Text("New message", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(
