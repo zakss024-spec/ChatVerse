@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.PersonOutline
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,6 +55,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -442,6 +446,10 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     var sending by remember { mutableStateOf(false) }
     var peerTyping by remember { mutableStateOf(false) }
     var replyingTo by remember { mutableStateOf<GlobalMessage?>(null) }
+    var messageMenuFor by remember { mutableStateOf("") }
+    var editingMessageId by remember { mutableStateOf("") }
+    var editDraft by remember { mutableStateOf("") }
+    var deletingMessage by remember { mutableStateOf<GlobalMessage?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -456,7 +464,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
                 peerTyping = typingResponse.first in 200..299 && org.json.JSONArray(typingResponse.second).length() > 0
-                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
+                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,deleted_at,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
                     val loaded = mutableListOf<GlobalMessage>()
@@ -479,7 +487,8 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                             delivered,
                             row.optString("reply_to_message_id").takeIf { it.isNotBlank() && it != "null" }.orEmpty(),
                             reply?.optString("content").orEmpty(),
-                            reply?.optString("sender_id").orEmpty()
+                            reply?.optString("sender_id").orEmpty(),
+                            row.optString("deleted_at").let { it.isNotBlank() && it != "null" }
                         ))
                     }
                     messages = loaded
@@ -499,13 +508,13 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start, verticalAlignment = Alignment.CenterVertically) {
                 Column(
                     modifier = Modifier
                         .widthIn(max = 300.dp)
                         .clip(RoundedCornerShape(17.dp))
                         .background(if (mine) Color(0xFF24564F) else Panel)
-                        .clickable { replyingTo = item }
+                        .clickable { if (!item.isDeleted) replyingTo = item }
                         .padding(horizontal = 13.dp, vertical = 10.dp),
                     horizontalAlignment = if (mine) Alignment.End else Alignment.Start
                 ) {
@@ -518,7 +527,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                         )
                         Spacer(Modifier.height(4.dp))
                     }
-                    Text(item.content, color = Color.White, fontSize = 14.sp)
+                    Text(if (item.isDeleted) "Pesan telah dihapus" else item.content, color = if (item.isDeleted) Muted else Color.White, fontSize = 14.sp)
                     if (mine) {
                         Text(
                             if (item.isRead) "Read" else if (item.isDelivered) "Delivered" else "Sent",
@@ -527,11 +536,74 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                             modifier = Modifier.padding(top = 3.dp)
                         )
                     }
-                    Text("Ketuk pesan untuk membalas", color = Muted, fontSize = 8.sp)
+                    if (!item.isDeleted) Text("Ketuk pesan untuk membalas", color = Muted, fontSize = 8.sp)
+                }
+                if (mine && !item.isDeleted) {
+                    Box {
+                        IconButton(onClick = { messageMenuFor = item.id }) {
+                            Icon(Icons.Rounded.MoreVert, contentDescription = "Opsi pesan", tint = Muted)
+                        }
+                        DropdownMenu(expanded = messageMenuFor == item.id, onDismissRequest = { messageMenuFor = "" }) {
+                            DropdownMenuItem(text = { Text("Edit pesan") }, onClick = {
+                                editingMessageId = item.id
+                                editDraft = item.content
+                                messageMenuFor = ""
+                            })
+                            DropdownMenuItem(text = { Text("Hapus pesan") }, onClick = {
+                                deletingMessage = item
+                                messageMenuFor = ""
+                            })
+                        }
+                    }
                 }
             }
         }
         if (messages.isEmpty()) item { Text("Belum ada pesan. Sapa pengguna ini!", color = Muted, fontSize = 13.sp) }
+    }
+    if (editingMessageId.isNotBlank()) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Panel).padding(10.dp)) {
+            Text("Edit pesan", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(value = editDraft, onValueChange = { editDraft = it.take(2000) }, modifier = Modifier.fillMaxWidth(), maxLines = 4)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { editingMessageId = ""; editDraft = "" }) { Text("Batal", color = Muted) }
+                TextButton(onClick = {
+                    val targetId = editingMessageId
+                    val updated = editDraft.trim()
+                    if (updated.isNotBlank()) scope.launch {
+                        val result = supabaseCall("/rest/v1/messages?id=eq.$targetId", accessToken, "PATCH", JSONObject().put("content", updated))
+                        if (result.first in 200..299) {
+                            messages = messages.map { if (it.id == targetId) it.copy(content = updated) else it }
+                            status = "Pesan berhasil diedit."
+                            editingMessageId = ""
+                            editDraft = ""
+                        } else status = "Edit pesan gagal (${result.first})."
+                    }
+                }) { Text("Simpan", color = Mint) }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+    }
+    if (deletingMessage != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deletingMessage = null },
+            title = { Text("Hapus pesan?") },
+            text = { Text("Pesan akan ditandai sebagai dihapus untuk semua anggota chat.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val target = deletingMessage ?: return@TextButton
+                    scope.launch {
+                        val result = supabaseCall("/rest/v1/messages?id=eq.${target.id}", accessToken, "PATCH",
+                            JSONObject().put("deleted_at", java.time.Instant.now().toString()).put("deleted_by", myUserId))
+                        if (result.first in 200..299) {
+                            messages = messages.map { if (it.id == target.id) it.copy(isDeleted = true) else it }
+                            status = "Pesan dihapus."
+                        } else status = "Hapus pesan gagal (${result.first})."
+                        deletingMessage = null
+                    }
+                }) { Text("Hapus", color = Color(0xFFFF8A80)) }
+            },
+            dismissButton = { TextButton(onClick = { deletingMessage = null }) { Text("Batal") } }
+        )
     }
     if (replyingTo != null) {
         Row(
@@ -590,7 +662,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     }
 }
 
-private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false, val replyToId: String = "", val replyContent: String = "", val replySenderId: String = "")
+private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false, val replyToId: String = "", val replyContent: String = "", val replySenderId: String = "", val isDeleted: Boolean = false)
 
 @Composable
 private fun GlobalChatScreen(accessToken: String) {
