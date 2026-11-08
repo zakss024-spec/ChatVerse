@@ -440,6 +440,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     var status by remember { mutableStateOf("Memuat percakapan...") }
     var sending by remember { mutableStateOf(false) }
     var peerTyping by remember { mutableStateOf(false) }
+    var replyingTo by remember { mutableStateOf<GlobalMessage?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -451,11 +452,10 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             }
             myUserId = JSONObject(user.second).optString("id")
             while (true) {
-                // Update this member's read cursor without exposing another user's membership data.
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
                 peerTyping = typingResponse.first in 200..299 && org.json.JSONArray(typingResponse.second).length() > 0
-                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
+                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
                     val loaded = mutableListOf<GlobalMessage>()
@@ -469,7 +469,17 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                             if (receipt.optString("delivered_at").isNotBlank() && receipt.optString("delivered_at") != "null") delivered = true
                             if (receipt.optString("read_at").isNotBlank() && receipt.optString("read_at") != "null") read = true
                         }
-                        loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content"), read, delivered))
+                        val reply = row.optJSONObject("reply")
+                        loaded.add(GlobalMessage(
+                            row.optString("id"),
+                            row.optString("sender_id"),
+                            row.optString("content"),
+                            read,
+                            delivered,
+                            row.optString("reply_to_message_id").takeIf { it.isNotBlank() && it != "null" }.orEmpty(),
+                            reply?.optString("content").orEmpty(),
+                            reply?.optString("sender_id").orEmpty()
+                        ))
                     }
                     messages = loaded
                     status = "Pesan diperbarui otomatis"
@@ -485,26 +495,55 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     Text(status, color = Muted, fontSize = 11.sp)
     if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(8.dp))
-    LazyColumn(modifier = Modifier.fillMaxWidth().height(390.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
             Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-                Box(Modifier.clip(RoundedCornerShape(17.dp)).background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
-                    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
-                        Text(item.content, color = Color.White, fontSize = 14.sp)
-                        if (mine) {
-                            Text(
-                                if (item.isRead) "Read" else if (item.isDelivered) "Delivered" else "Sent",
-                                color = if (item.isRead) Mint else Muted,
-                                fontSize = 9.sp,
-                                modifier = Modifier.padding(top = 3.dp)
-                            )
-                        }
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 300.dp)
+                        .clip(RoundedCornerShape(17.dp))
+                        .background(if (mine) Color(0xFF24564F) else Panel)
+                        .clickable { replyingTo = item }
+                        .padding(horizontal = 13.dp, vertical = 10.dp),
+                    horizontalAlignment = if (mine) Alignment.End else Alignment.Start
+                ) {
+                    if (item.replyContent.isNotBlank()) {
+                        Text(
+                            "↪ ${if (item.replySenderId == myUserId) "You" else "Reply"}: ${item.replyContent}",
+                            color = Mint,
+                            fontSize = 10.sp,
+                            maxLines = 2
+                        )
+                        Spacer(Modifier.height(4.dp))
                     }
+                    Text(item.content, color = Color.White, fontSize = 14.sp)
+                    if (mine) {
+                        Text(
+                            if (item.isRead) "Read" else if (item.isDelivered) "Delivered" else "Sent",
+                            color = if (item.isRead) Mint else Muted,
+                            fontSize = 9.sp,
+                            modifier = Modifier.padding(top = 3.dp)
+                        )
+                    }
+                    Text("Ketuk pesan untuk membalas", color = Muted, fontSize = 8.sp)
                 }
             }
         }
         if (messages.isEmpty()) item { Text("Belum ada pesan. Sapa pengguna ini!", color = Muted, fontSize = 13.sp) }
+    }
+    if (replyingTo != null) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Panel).padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Membalas pesan", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(replyingTo?.content.orEmpty(), color = Color.White, fontSize = 12.sp, maxLines = 1)
+            }
+            TextButton(onClick = { replyingTo = null }) { Text("Batal", color = Muted) }
+        }
+        Spacer(Modifier.height(6.dp))
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(value = draft, onValueChange = { value ->
@@ -524,13 +563,20 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         Spacer(Modifier.width(8.dp))
         Button(enabled = draft.isNotBlank() && !sending && myUserId.isNotBlank(), onClick = {
             val content = draft.trim()
+            val replyId = replyingTo?.id
             sending = true
             scope.launch {
                 try {
-                    val body = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId).put("message_type", "text").put("content", content)
+                    val body = JSONObject()
+                        .put("conversation_id", conversationId)
+                        .put("sender_id", myUserId)
+                        .put("message_type", "text")
+                        .put("content", content)
+                    if (!replyId.isNullOrBlank()) body.put("reply_to_message_id", replyId)
                     val response = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
                     if (response.first in 200..299) {
                         draft = ""
+                        replyingTo = null
                         supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=eq.$myUserId", accessToken, "PATCH", JSONObject().put("is_typing", false).put("updated_at", java.time.Instant.now().toString()))
                     } else status = "Pesan gagal dikirim."
                 } catch (_: Exception) {
@@ -543,7 +589,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     }
 }
 
-private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false)
+private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false, val replyToId: String = "", val replyContent: String = "", val replySenderId: String = "")
 
 @Composable
 private fun GlobalChatScreen(accessToken: String) {
