@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -949,8 +950,10 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     var draft by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Menghubungkan...") }
     var sending by remember { mutableStateOf(false) }
-    var members by remember { mutableStateOf(listOf<Pair<String, String>>()) }
+    var members by remember { mutableStateOf(listOf<Triple<String, String, String>>()) }
     var showMembers by remember { mutableStateOf(false) }
+    var pendingRemoval by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var removingMember by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -962,16 +965,16 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
             }
             myUserId = JSONObject(user.second).optString("id")
             while (true) {
-                val memberResponse = supabaseCall("/rest/v1/conversation_members?conversation_id=eq." + conversationId + "&select=user_id,role,profiles(username,display_name)&order=created_at.asc", accessToken)
+                val memberResponse = supabaseCall("/rest/v1/conversation_members?conversation_id=eq." + conversationId + "&select=user_id,role,profiles(username,display_name)&order=joined_at.asc", accessToken)
                 if (memberResponse.first in 200..299) {
                     val memberRows = org.json.JSONArray(memberResponse.second)
-                    val loadedMembers = mutableListOf<Pair<String, String>>()
+                    val loadedMembers = mutableListOf<Triple<String, String, String>>()
                     for (i in 0 until memberRows.length()) {
                         val row = memberRows.getJSONObject(i)
                         val profile = row.optJSONObject("profiles")
                         val display = profile?.optString("display_name").orEmpty().ifBlank { profile?.optString("username").orEmpty() }
                         val role = row.optString("role", "member")
-                        loadedMembers.add((if (display.isBlank()) "User " + row.optString("user_id").take(6) else display) to role)
+                        loadedMembers.add(Triple(row.optString("user_id"), if (display.isBlank()) "User " + row.optString("user_id").take(6) else display, role))
                     }
                     members = loadedMembers
                 }
@@ -996,6 +999,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     TextButton(onClick = { showMembers = !showMembers }) {
         Text(if (showMembers) "Sembunyikan anggota • " + members.size else "Lihat anggota • " + members.size, color = Cyan)
     }
+    val myRole = members.firstOrNull { it.first == myUserId }?.third.orEmpty()
     if (showMembers) {
         Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp),
             modifier = Modifier.fillMaxWidth()) {
@@ -1008,14 +1012,44 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                             Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(17.dp))
                         }
                         Spacer(Modifier.width(9.dp))
-                        Text(member.first, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        Text(if (member.second == "admin") "ADMIN" else "MEMBER",
-                            color = if (member.second == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(member.second, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Text(if (member.third == "admin") "ADMIN" else "MEMBER",
+                            color = if (member.third == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        if (myRole == "admin" && member.third == "member") {
+                            TextButton(onClick = { pendingRemoval = member }) { Text("Keluarkan", color = Color(0xFFFF9A9A), fontSize = 10.sp) }
+                        }
                     }
                 }
             }
         }
         Spacer(Modifier.height(6.dp))
+    }
+    if (pendingRemoval != null) {
+        val target = pendingRemoval!!
+        AlertDialog(
+            onDismissRequest = { if (!removingMember) pendingRemoval = null },
+            title = { Text("Keluarkan anggota?") },
+            text = { Text("Keluarkan ${target.second} dari grup ini? Anggota tersebut tidak dapat mengirim atau membaca pesan grup setelah dikeluarkan.") },
+            confirmButton = {
+                TextButton(enabled = !removingMember, onClick = {
+                    removingMember = true
+                    scope.launch {
+                        try {
+                            val payload = JSONObject().put("p_conversation_id", conversationId).put("p_member_id", target.first)
+                            val result = supabaseCall("/rest/v1/rpc/remove_group_member", accessToken, "POST", payload)
+                            if (result.first in 200..299) {
+                                members = members.filterNot { it.first == target.first }
+                                status = "Anggota berhasil dikeluarkan."
+                            } else status = "Gagal mengeluarkan anggota (${result.first})."
+                        } catch (_: Exception) { status = "Tidak dapat mengeluarkan anggota." }
+                        finally { removingMember = false; pendingRemoval = null }
+                    }
+                }) { Text(if (removingMember) "Memproses..." else "Keluarkan", color = Color(0xFFFF7777)) }
+            },
+            dismissButton = {
+                TextButton(enabled = !removingMember, onClick = { pendingRemoval = null }) { Text("Batal") }
+            }
+        )
     }
     Spacer(Modifier.height(8.dp))
     LazyColumn(Modifier.fillMaxWidth().height(390.dp), contentPadding = PaddingValues(vertical = 8.dp),
