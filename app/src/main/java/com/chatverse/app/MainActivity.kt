@@ -25,6 +25,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -593,6 +597,11 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(8.dp))
     LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = spring(stiffness = 420f)) +
+                    slideInVertically(initialOffsetY = { it / 5 }, animationSpec = spring(stiffness = 420f))
+            ) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
             Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start, verticalAlignment = Alignment.CenterVertically) {
@@ -658,6 +667,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 }
             }
         }
+            }
         if (messages.isEmpty()) item { Text("Belum ada pesan. Sapa pengguna ini!", color = Muted, fontSize = 13.sp) }
     }
     if (editingMessageId.isNotBlank()) {
@@ -824,6 +834,11 @@ private fun GlobalChatScreen(accessToken: String) {
         contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = spring(stiffness = 420f)) +
+                    slideInVertically(initialOffsetY = { it / 5 }, animationSpec = spring(stiffness = 420f))
+            ) {
         items(messages, key = { it.id }) { message ->
             val mine = message.senderId == myUserId
             Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
@@ -833,6 +848,7 @@ private fun GlobalChatScreen(accessToken: String) {
                 }
             }
         }
+            }
         if (messages.isEmpty()) item { Text("Belum ada pesan. Mulai percakapan global pertama!", color = Muted, fontSize = 13.sp) }
     }
     Spacer(Modifier.height(10.dp))
