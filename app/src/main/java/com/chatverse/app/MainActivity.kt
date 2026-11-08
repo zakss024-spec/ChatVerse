@@ -957,6 +957,11 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     var memberSearch by remember { mutableStateOf("") }
     var memberSearchResults by remember { mutableStateOf(listOf<SearchProfile>()) }
     var addingMemberId by remember { mutableStateOf("") }
+    var groupTitle by remember { mutableStateOf(title) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameDraft by remember { mutableStateOf(title) }
+    var pendingRoleChange by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var changingRole by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -997,7 +1002,12 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         } catch (_: Exception) { status = "Koneksi terputus. Periksa internet." }
     }
 
-    Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(groupTitle, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        if (myRole == "admin") {
+            TextButton(onClick = { renameDraft = groupTitle; showRenameDialog = true }) { Text("Ubah nama", color = Mint, fontSize = 11.sp) }
+        }
+    }
     Text(status, color = Mint, fontSize = 11.sp)
     TextButton(onClick = { showMembers = !showMembers }) {
         Text(if (showMembers) "Sembunyikan anggota • " + members.size else "Lihat anggota • " + members.size, color = Cyan)
@@ -1018,6 +1028,11 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                         Text(member.second, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         Text(if (member.third == "admin") "ADMIN" else "MEMBER",
                             color = if (member.third == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        if (myRole == "admin" && member.first != myUserId && member.third != "creator") {
+                            TextButton(onClick = { pendingRoleChange = member }) {
+                                Text(if (member.third == "admin") "Jadikan member" else "Jadikan admin", color = Cyan, fontSize = 9.sp)
+                            }
+                        }
                         if (myRole == "admin" && member.third == "member") {
                             TextButton(onClick = { pendingRemoval = member }) { Text("Keluarkan", color = Color(0xFFFF9A9A), fontSize = 10.sp) }
                         }
@@ -1076,6 +1091,59 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
             }
         }
         Spacer(Modifier.height(6.dp))
+    }
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Ubah nama grup") },
+            text = {
+                OutlinedTextField(value = renameDraft, onValueChange = { renameDraft = it.take(60) },
+                    label = { Text("Nama grup") }, singleLine = true)
+            },
+            confirmButton = {
+                TextButton(enabled = renameDraft.trim().length >= 2, onClick = {
+                    scope.launch {
+                        try {
+                            val payload = JSONObject().put("p_conversation_id", conversationId).put("p_title", renameDraft.trim())
+                            val result = supabaseCall("/rest/v1/rpc/rename_group_conversation", accessToken, "POST", payload)
+                            if (result.first in 200..299) {
+                                groupTitle = renameDraft.trim()
+                                status = "Nama grup berhasil diperbarui."
+                                showRenameDialog = false
+                            } else status = "Gagal mengubah nama grup (" + result.first + ")."
+                        } catch (_: Exception) { status = "Tidak dapat mengubah nama grup." }
+                    }
+                }) { Text("Simpan", color = Mint) }
+            },
+            dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text("Batal") } }
+        )
+    }
+    if (pendingRoleChange != null) {
+        val target = pendingRoleChange!!
+        val promote = target.third != "admin"
+        AlertDialog(
+            onDismissRequest = { if (!changingRole) pendingRoleChange = null },
+            title = { Text(if (promote) "Jadikan admin?" else "Turunkan menjadi anggota?") },
+            text = { Text(if (promote) target.second + " akan mendapat hak admin grup." else target.second + " tidak lagi memiliki hak admin.") },
+            confirmButton = {
+                TextButton(enabled = !changingRole, onClick = {
+                    changingRole = true
+                    scope.launch {
+                        try {
+                            val payload = JSONObject().put("p_conversation_id", conversationId)
+                                .put("p_member_id", target.first).put("p_make_admin", promote)
+                            val result = supabaseCall("/rest/v1/rpc/set_group_member_admin", accessToken, "POST", payload)
+                            if (result.first in 200..299) {
+                                members = members.map { if (it.first == target.first) Triple(it.first, it.second, if (promote) "admin" else "member") else it }
+                                status = if (promote) "Hak admin berhasil diberikan." else "Hak admin berhasil dicabut."
+                            } else status = "Gagal mengubah peran (" + result.first + ")."
+                        } catch (_: Exception) { status = "Tidak dapat mengubah peran anggota." }
+                        finally { changingRole = false; pendingRoleChange = null }
+                    }
+                }) { Text(if (changingRole) "Memproses..." else "Konfirmasi", color = Mint) }
+            },
+            dismissButton = { TextButton(enabled = !changingRole, onClick = { pendingRoleChange = null }) { Text("Batal") } }
+        )
     }
     if (pendingRemoval != null) {
         val target = pendingRemoval!!
