@@ -435,6 +435,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     var draft by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Memuat percakapan...") }
     var sending by remember { mutableStateOf(false) }
+    var peerTyping by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -448,6 +449,8 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             while (true) {
                 // Update this member's read cursor without exposing another user's membership data.
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
+                val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
+                peerTyping = typingResponse.first in 200..299 && org.json.JSONArray(typingResponse.second).length() > 0
                 val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
@@ -476,6 +479,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
 
     Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
     Text(status, color = Muted, fontSize = 11.sp)
+    if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(8.dp))
     LazyColumn(modifier = Modifier.fillMaxWidth().height(390.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
@@ -499,7 +503,20 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         if (messages.isEmpty()) item { Text("Belum ada pesan. Sapa pengguna ini!", color = Muted, fontSize = 13.sp) }
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = draft, onValueChange = { draft = it.take(2000) }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
+        OutlinedTextField(value = draft, onValueChange = { value ->
+            draft = value.take(2000)
+            scope.launch {
+                delay(450)
+                if (myUserId.isNotBlank()) {
+                    val typingBody = JSONObject()
+                        .put("conversation_id", conversationId)
+                        .put("user_id", myUserId)
+                        .put("is_typing", draft.isNotBlank())
+                        .put("updated_at", java.time.Instant.now().toString())
+                    supabaseCall("/rest/v1/conversation_typing?on_conflict=conversation_id,user_id", accessToken, "POST", typingBody)
+                }
+            }
+        }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
         Spacer(Modifier.width(8.dp))
         Button(enabled = draft.isNotBlank() && !sending && myUserId.isNotBlank(), onClick = {
             val content = draft.trim()
@@ -508,7 +525,10 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 try {
                     val body = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId).put("message_type", "text").put("content", content)
                     val response = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
-                    if (response.first in 200..299) draft = "" else status = "Pesan gagal dikirim."
+                    if (response.first in 200..299) {
+                        draft = ""
+                        supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=eq.$myUserId", accessToken, "PATCH", JSONObject().put("is_typing", false).put("updated_at", java.time.Instant.now().toString()))
+                    } else status = "Pesan gagal dikirim."
                 } catch (_: Exception) {
                     status = "Gagal mengirim pesan."
                 } finally {
