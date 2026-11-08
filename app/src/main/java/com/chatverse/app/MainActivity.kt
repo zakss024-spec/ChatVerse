@@ -614,6 +614,10 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 10 })
+            ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start, verticalAlignment = Alignment.CenterVertically) {
                 Column(
                     modifier = Modifier
@@ -675,6 +679,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                         }
                     }
                 }
+            }
             }
         }
         if (messages.isEmpty()) item { Text("Belum ada pesan. Sapa pengguna ini!", color = Muted, fontSize = 13.sp) }
