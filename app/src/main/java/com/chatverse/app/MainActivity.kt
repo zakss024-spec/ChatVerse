@@ -1423,19 +1423,45 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         OutlinedTextField(value = draft, onValueChange = { draft = it.take(2000) },
             placeholder = { Text("Tulis ke grup...") }, modifier = Modifier.weight(1f), maxLines = 3)
         Spacer(Modifier.width(7.dp))
-        Button(enabled = draft.isNotBlank() && !sending && myUserId.isNotBlank(), onClick = {
-            val content = draft.trim()
-            sending = true
-            scope.launch {
-                try {
-                    val payload = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId)
-                        .put("message_type", "text").put("content", content)
-                    val result = supabaseCall("/rest/v1/messages", accessToken, "POST", payload)
-                    if (result.first in 200..299) draft = "" else status = "Pesan gagal dikirim (" + result.first + ")."
-                } catch (_: Exception) { status = "Gagal mengirim pesan." }
-                finally { sending = false }
+        AnimatedSendButton(
+            enabled = draft.isNotBlank() && !sending && myUserId.isNotBlank(),
+            sending = sending,
+            onClick = {
+                val content = draft.trim()
+                sending = true
+                scope.launch {
+                    try {
+                        val payload = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId)
+                            .put("message_type", "text").put("content", content)
+                        val result = supabaseCall("/rest/v1/messages", accessToken, "POST", payload)
+                        if (result.first in 200..299) draft = "" else status = "Pesan gagal dikirim (" + result.first + ")."
+                    } catch (_: Exception) { status = "Gagal mengirim pesan." }
+                    finally { sending = false }
+                }
             }
-        }) { Text(if (sending) "..." else "Send") }
+        )
+    }
+}
+
+@Composable
+private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.93f else 1f,
+        animationSpec = spring(),
+        label = "sendButtonPress"
+    )
+    Box(
+        modifier = Modifier
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (enabled) Mint else Mint.copy(alpha = 0.35f))
+            .clickable(enabled = enabled, interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 13.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(if (sending) "Mengirim…" else "Send", color = Night, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
 }
 
