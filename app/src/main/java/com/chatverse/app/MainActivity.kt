@@ -446,6 +446,8 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             }
             myUserId = JSONObject(user.second).optString("id")
             while (true) {
+                // Update this member's read cursor without exposing another user's membership data.
+                supabaseCall("/rest/v1/rpc/mark_conversation_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content&order=created_at.asc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
