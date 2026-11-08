@@ -1401,13 +1401,18 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(messages, key = { it.id }) { message ->
             val mine = message.senderId == myUserId
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
-                Text(if (mine) "You" else "User " + message.senderId.take(6), color = if (mine) Mint else Cyan,
-                    fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp))
-                Box(Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(16.dp))
-                    .background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
-                    Text(if (message.isDeleted) "Pesan telah dihapus" else message.content,
-                        color = if (message.isDeleted) Muted else Color.White, fontSize = 14.sp)
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 8 })
+            ) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                    Text(if (mine) "You" else "User " + message.senderId.take(6), color = if (mine) Mint else Cyan,
+                        fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                    Box(Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(16.dp))
+                        .background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
+                        Text(if (message.isDeleted) "Pesan telah dihapus" else message.content,
+                            color = if (message.isDeleted) Muted else Color.White, fontSize = 14.sp)
+                    }
                 }
             }
         }
