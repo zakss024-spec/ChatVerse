@@ -842,7 +842,7 @@ private fun GroupsScreen(accessToken: String) {
     if (activeId.isNotBlank()) {
         Column {
             TextButton(onClick = { activeId = ""; activeTitle = "" }) { Text("← Kembali ke Groups", color = Mint) }
-            GroupChatScreen(accessToken, activeId, activeTitle)
+            GroupChatScreen(accessToken, activeId, activeTitle) { activeId = ""; activeTitle = "" }
         }
         return
     }
