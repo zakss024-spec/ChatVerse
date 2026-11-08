@@ -12,6 +12,9 @@ import org.json.JSONObject
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -213,7 +216,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 Header()
                 Spacer(Modifier.height(28.dp))
                 when (selectedTab) {
-                    0 -> ChatsScreen()
+                    0 -> GlobalChatScreen(accessToken)
                     1 -> GroupsScreen()
                     else -> ProfileScreen(accessToken, onLogout)
                 }
@@ -265,50 +268,101 @@ private fun Header() {
     }
 }
 
+private data class GlobalMessage(val id: String, val senderId: String, val content: String)
+
 @Composable
-private fun ChatsScreen() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            "Messages",
-            color = Color.White,
-            fontSize = 23.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(Icons.Rounded.Add, contentDescription = "New chat", tint = Mint)
-    }
-    Spacer(Modifier.height(16.dp))
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xAA1B3036))
-            .padding(horizontal = 15.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Rounded.Search, contentDescription = null, tint = Muted)
-        Spacer(Modifier.width(10.dp))
-        Text("Search conversations", color = Muted, fontSize = 14.sp)
-    }
-    Spacer(Modifier.height(22.dp))
-    Text("RECENT", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-    Spacer(Modifier.height(10.dp))
+private fun GlobalChatScreen(accessToken: String) {
+    var conversationId by remember { mutableStateOf("") }
+    var myUserId by remember { mutableStateOf("") }
+    var messages by remember { mutableStateOf(listOf<GlobalMessage>()) }
+    var draft by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Menghubungkan ke Global Chat...") }
+    var sending by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val chats = listOf(
-        ChatItem("ChatVerse Team", "Welcome to the new space ✨", "09:42", "C", true),
-        ChatItem("Alya", "That sounds good!", "Yesterday", "A", false),
-        ChatItem("Project Room", "You: I'll send the update soon", "Mon", "P", false),
-        ChatItem("Raka", "See you tomorrow", "Sun", "R", false)
-    )
+    LaunchedEffect(accessToken) {
+        try {
+            val user = supabaseCall("/auth/v1/user", accessToken)
+            if (user.first !in 200..299) {
+                status = "Sesi login perlu diperbarui."
+                return@LaunchedEffect
+            }
+            myUserId = JSONObject(user.second).optString("id")
+            val room = supabaseCall("/rest/v1/conversations?type=eq.global&title=eq.ChatVerse%20Global&select=id&limit=1", accessToken)
+            if (room.first !in 200..299) {
+                status = "Tidak dapat membuka ruang global (\${room.first})."
+                return@LaunchedEffect
+            }
+            val rooms = org.json.JSONArray(room.second)
+            if (rooms.length() == 0) {
+                status = "Ruang Global belum tersedia untuk akun ini."
+                return@LaunchedEffect
+            }
+            conversationId = rooms.getJSONObject(0).optString("id")
+            status = "ChatVerse Global • pembaruan otomatis"
+            while (true) {
+                val result = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content&order=created_at.asc&limit=100", accessToken)
+                if (result.first in 200..299) {
+                    val rows = org.json.JSONArray(result.second)
+                    val loaded = mutableListOf<GlobalMessage>()
+                    for (i in 0 until rows.length()) {
+                        val row = rows.getJSONObject(i)
+                        loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content")))
+                    }
+                    messages = loaded
+                } else status = "Gagal memuat pesan (\${result.first})."
+                delay(4000)
+            }
+        } catch (_: Exception) {
+            status = "Koneksi terputus. Periksa internet."
+        }
+    }
 
+    Text("Global Chat", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(5.dp))
+    Text(status, color = Mint, fontSize = 11.sp)
+    Spacer(Modifier.height(14.dp))
     LazyColumn(
-        contentPadding = PaddingValues(bottom = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
+        contentPadding = PaddingValues(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        items(chats) { chat -> ChatRow(chat) }
+        items(messages, key = { it.id }) { message ->
+            val mine = message.senderId == myUserId
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                Text(if (mine) "You" else "User " + message.senderId.take(6), color = if (mine) Mint else Cyan, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                Box(Modifier.clip(RoundedCornerShape(17.dp)).background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
+                    Text(message.content, color = Color.White, fontSize = 14.sp)
+                }
+            }
+        }
+        if (messages.isEmpty()) item { Text("Belum ada pesan. Mulai percakapan global pertama!", color = Muted, fontSize = 13.sp) }
+    }
+    Spacer(Modifier.height(10.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(value = draft, onValueChange = { draft = it.take(2000) }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
+        Spacer(Modifier.width(8.dp))
+        Button(
+            enabled = draft.isNotBlank() && !sending && conversationId.isNotBlank() && myUserId.isNotBlank(),
+            onClick = {
+                val textToSend = draft.trim()
+                sending = true
+                scope.launch {
+                    try {
+                        val body = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId).put("message_type", "text").put("content", textToSend)
+                        val result = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
+                        if (result.first in 200..299) {
+                            draft = ""
+                            status = "Pesan terkirim"
+                        } else status = "Pesan gagal dikirim (\${result.first})."
+                    } catch (_: Exception) {
+                        status = "Gagal mengirim. Periksa koneksi."
+                    } finally {
+                        sending = false
+                    }
+                }
+            }
+        ) { Text(if (sending) "..." else "Send") }
     }
 }
 
