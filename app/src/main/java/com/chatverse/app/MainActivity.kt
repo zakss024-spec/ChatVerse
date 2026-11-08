@@ -1,0 +1,320 @@
+package com.chatverse.app
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.PersonOutline
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+private val Night = Color(0xFF071014)
+private val Panel = Color(0xFF142329)
+private val Mint = Color(0xFF68E5C1)
+private val Cyan = Color(0xFF69CBE8)
+private val Muted = Color(0xFF8FA5AA)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                ChatVerseApp()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatVerseApp() {
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Night
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF10242A), Night, Color(0xFF080D12))
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+            ) {
+                Spacer(Modifier.height(22.dp))
+                Header()
+                Spacer(Modifier.height(28.dp))
+                when (selectedTab) {
+                    0 -> ChatsScreen()
+                    1 -> GroupsScreen()
+                    else -> ProfileScreen()
+                }
+                Spacer(Modifier.height(100.dp))
+            }
+
+            GlassNavigation(
+                selected = selectedTab,
+                onSelect = { selectedTab = it },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun Header() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column {
+            Text(
+                "ChatVerse",
+                color = Color.White,
+                fontSize = 27.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Beyond Messaging",
+                color = Muted,
+                fontSize = 12.sp,
+                letterSpacing = 1.2.sp
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF1C3940))
+                .clickable { },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Z", color = Mint, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun ChatsScreen() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "Messages",
+            color = Color.White,
+            fontSize = 23.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(Icons.Rounded.Add, contentDescription = "New chat", tint = Mint)
+    }
+    Spacer(Modifier.height(16.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xAA1B3036))
+            .padding(horizontal = 15.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Rounded.Search, contentDescription = null, tint = Muted)
+        Spacer(Modifier.width(10.dp))
+        Text("Search conversations", color = Muted, fontSize = 14.sp)
+    }
+    Spacer(Modifier.height(22.dp))
+    Text("RECENT", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+    Spacer(Modifier.height(10.dp))
+
+    val chats = listOf(
+        ChatItem("ChatVerse Team", "Welcome to the new space ✨", "09:42", "C", true),
+        ChatItem("Alya", "That sounds good!", "Yesterday", "A", false),
+        ChatItem("Project Room", "You: I'll send the update soon", "Mon", "P", false),
+        ChatItem("Raka", "See you tomorrow", "Sun", "R", false)
+    )
+
+    LazyColumn(
+        contentPadding = PaddingValues(bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        items(chats) { chat -> ChatRow(chat) }
+    }
+}
+
+private data class ChatItem(
+    val name: String,
+    val message: String,
+    val time: String,
+    val initial: String,
+    val unread: Boolean
+)
+
+@Composable
+private fun ChatRow(chat: ChatItem) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(Color(0xCC1B3036), Color(0xAA122329))))
+            .clickable { }
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(50.dp)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(listOf(Color(0xFF28665E), Color(0xFF24506A)))),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(chat.initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        }
+        Spacer(Modifier.width(13.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(chat.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(chat.message, color = Muted, fontSize = 12.sp, maxLines = 1)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(chat.time, color = Muted, fontSize = 10.sp)
+            if (chat.unread) {
+                Spacer(Modifier.height(7.dp))
+                Box(Modifier.size(7.dp).clip(CircleShape).background(Mint))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupsScreen() {
+    Text("Communities", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(8.dp))
+    Text("Your group conversations will appear here.", color = Muted, fontSize = 13.sp)
+    Spacer(Modifier.height(20.dp))
+    FeatureCard("Create a group", "Bring friends together in one conversation.")
+    Spacer(Modifier.height(12.dp))
+    FeatureCard("Discover conversations", "Find and join spaces shared with you.")
+}
+
+@Composable
+private fun ProfileScreen() {
+    Text("Your profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(20.dp))
+    FeatureCard("Set up your profile", "Add a name, photo, and a short bio.")
+    Spacer(Modifier.height(12.dp))
+    FeatureCard("Privacy & security", "Manage your account and conversation settings.")
+}
+
+@Composable
+private fun FeatureCard(title: String, subtitle: String) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Panel.copy(alpha = 0.82f)),
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(subtitle, color = Muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun GlassNavigation(
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(Color(0xE61A2C32))
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect)
+        NavigationItem("Groups", Icons.Rounded.Groups, 1, selected, onSelect)
+        NavigationItem("Profile", Icons.Rounded.PersonOutline, 2, selected, onSelect)
+    }
+}
+
+@Composable
+private fun NavigationItem(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    index: Int,
+    selected: Int,
+    onSelect: (Int) -> Unit
+) {
+    val active = selected == index
+    val tint by animateColorAsState(if (active) Mint else Muted, label = "navTint")
+    val horizontalPadding by animateDpAsState(if (active) 17.dp else 12.dp, label = "navPadding")
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (active) Color(0xFF294B4B) else Color.Transparent)
+            .clickable { onSelect(index) }
+            .padding(horizontal = horizontalPadding, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(19.dp))
+        if (active) {
+            Spacer(Modifier.width(7.dp))
+            Text(label, color = tint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
