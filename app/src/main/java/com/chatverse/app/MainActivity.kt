@@ -461,6 +461,11 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 return@LaunchedEffect
             }
             myUserId = JSONObject(user.second).optString("id")
+            val groupInfo = supabaseCall("/rest/v1/conversations?id=eq." + conversationId + "&select=created_by", accessToken)
+            if (groupInfo.first in 200..299) {
+                val groupRows = org.json.JSONArray(groupInfo.second)
+                if (groupRows.length() > 0) groupCreatorId = groupRows.getJSONObject(0).optString("created_by")
+            }
             while (true) {
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
@@ -964,6 +969,11 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     var changingRole by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var leavingGroup by remember { mutableStateOf(false) }
+    var groupCreatorId by remember { mutableStateOf("") }
+    var showTransferDialog by remember { mutableStateOf(false) }
+    var transferringOwnership by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deletingGroup by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(accessToken, conversationId) {
@@ -1012,6 +1022,16 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         }
     }
     Text(status, color = Mint, fontSize = 11.sp)
+    if (myUserId == groupCreatorId && groupCreatorId.isNotBlank()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TextButton(onClick = { showTransferDialog = true }, enabled = members.any { it.first != myUserId }) {
+                Text("Transfer kepemilikan", color = Cyan, fontSize = 10.sp)
+            }
+            TextButton(onClick = { showDeleteDialog = true }) {
+                Text("Hapus grup", color = Color(0xFFFF7777), fontSize = 10.sp)
+            }
+        }
+    }
     TextButton(onClick = { showLeaveDialog = true }) {
         Text("Keluar dari grup", color = Color(0xFFFF9A9A), fontSize = 11.sp)
     }
@@ -1031,9 +1051,9 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                         }
                         Spacer(Modifier.width(9.dp))
                         Text(member.second, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        Text(if (member.third == "admin") "ADMIN" else "MEMBER",
-                            color = if (member.third == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        if (myRole == "admin" && member.first != myUserId && member.third != "creator") {
+                        Text(when (member.third) { "owner" -> "OWNER"; "admin" -> "ADMIN"; else -> "MEMBER" },
+                            color = if (member.third == "owner" || member.third == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        if (myRole == "admin" && member.first != myUserId && member.first != groupCreatorId) {
                             TextButton(onClick = { pendingRoleChange = member }) {
                                 Text(if (member.third == "admin") "Jadikan member" else "Jadikan admin", color = Cyan, fontSize = 9.sp)
                             }
@@ -1121,6 +1141,64 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                 }) { Text("Simpan", color = Mint) }
             },
             dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text("Batal") } }
+        )
+    }
+    if (showTransferDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!transferringOwnership) showTransferDialog = false },
+            title = { Text("Transfer kepemilikan grup") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Pilih anggota yang akan menjadi pemilik baru. Kamu akan tetap menjadi admin.", color = Muted, fontSize = 12.sp)
+                    members.filter { it.first != myUserId }.forEach { candidate ->
+                        TextButton(enabled = !transferringOwnership, onClick = {
+                            transferringOwnership = true
+                            scope.launch {
+                                try {
+                                    val payload = JSONObject().put("p_conversation_id", conversationId).put("p_new_owner", candidate.first)
+                                    val result = supabaseCall("/rest/v1/rpc/transfer_group_ownership", accessToken, "POST", payload)
+                                    if (result.first in 200..299) {
+                                        groupCreatorId = candidate.first
+                                        members = members.map { member ->
+                                            when (member.first) {
+                                                candidate.first -> Triple(member.first, member.second, "owner")
+                                                myUserId -> Triple(member.first, member.second, "admin")
+                                                else -> member
+                                            }
+                                        }
+                                        status = "Kepemilikan grup berhasil dipindahkan."
+                                        showTransferDialog = false
+                                    } else status = "Transfer gagal (" + result.first + ")."
+                                } catch (_: Exception) { status = "Tidak dapat memindahkan kepemilikan." }
+                                finally { transferringOwnership = false }
+                            }
+                        }) { Text(candidate.second + "  •  Jadikan pemilik", color = Cyan) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showTransferDialog = false }, enabled = !transferringOwnership) { Text("Tutup") } }
+        )
+    }
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!deletingGroup) showDeleteDialog = false },
+            title = { Text("Hapus grup secara permanen?") },
+            text = { Text("Semua pesan dan keanggotaan grup ini akan dihapus untuk seluruh anggota. Tindakan ini tidak dapat dibatalkan.") },
+            confirmButton = {
+                TextButton(enabled = !deletingGroup, onClick = {
+                    deletingGroup = true
+                    scope.launch {
+                        try {
+                            val payload = JSONObject().put("p_conversation_id", conversationId)
+                            val result = supabaseCall("/rest/v1/rpc/delete_group_conversation", accessToken, "POST", payload)
+                            if (result.first in 200..299) onLeave()
+                            else status = "Tidak dapat menghapus grup (" + result.first + ")."
+                        } catch (_: Exception) { status = "Gagal menghapus grup. Periksa koneksi." }
+                        finally { deletingGroup = false; showDeleteDialog = false }
+                    }
+                }) { Text(if (deletingGroup) "Menghapus..." else "Hapus permanen", color = Color(0xFFFF7777)) }
+            },
+            dismissButton = { TextButton(enabled = !deletingGroup, onClick = { showDeleteDialog = false }) { Text("Batal") } }
         )
     }
     if (showLeaveDialog) {
