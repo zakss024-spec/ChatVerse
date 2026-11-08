@@ -1031,6 +1031,13 @@ private fun GroupsScreen(accessToken: String) {
     OutlinedTextField(value = title, onValueChange = { title = it.take(60) }, label = { Text("Nama grup") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = query, onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
         label = { Text("Cari username teman") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    val groupSearchInteraction = remember { MutableInteractionSource() }
+    val groupSearchPressed by groupSearchInteraction.collectIsPressedAsState()
+    val groupSearchScale by animateFloatAsState(
+        targetValue = if (groupSearchPressed) 0.96f else 1f,
+        animationSpec = spring(),
+        label = "groupSearchPress"
+    )
     Button(onClick = {
         busy = true
         scope.launch {
@@ -1050,7 +1057,9 @@ private fun GroupsScreen(accessToken: String) {
             } catch (_: Exception) { status = "Tidak dapat mencari pengguna." }
             finally { busy = false }
         }
-    }, enabled = query.length >= 2 && !busy, modifier = Modifier.fillMaxWidth()) {
+    }, enabled = query.length >= 2 && !busy,
+        interactionSource = groupSearchInteraction,
+        modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = groupSearchScale, scaleY = groupSearchScale)) {
         Text(if (busy) "Mencari..." else "Cari anggota")
     }
     if (results.isNotEmpty()) {
@@ -1071,6 +1080,13 @@ private fun GroupsScreen(accessToken: String) {
         }
     }
     Text(selected.size.toString() + " anggota dipilih • kamu otomatis menjadi admin", color = Muted, fontSize = 11.sp)
+    val createGroupInteraction = remember { MutableInteractionSource() }
+    val createGroupPressed by createGroupInteraction.collectIsPressedAsState()
+    val createGroupScale by animateFloatAsState(
+        targetValue = if (createGroupPressed) 0.96f else 1f,
+        animationSpec = spring(),
+        label = "createGroupPress"
+    )
     Button(onClick = {
         busy = true
         scope.launch {
@@ -1094,7 +1110,9 @@ private fun GroupsScreen(accessToken: String) {
             } catch (_: Exception) { status = "Gagal membuat grup. Periksa koneksi." }
             finally { busy = false }
         }
-    }, enabled = title.trim().length >= 2 && !busy, modifier = Modifier.fillMaxWidth()) {
+    }, enabled = title.trim().length >= 2 && !busy,
+        interactionSource = createGroupInteraction,
+        modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = createGroupScale, scaleY = createGroupScale)) {
         Text(if (busy) "Memproses..." else "Buat grup")
     }
 }
