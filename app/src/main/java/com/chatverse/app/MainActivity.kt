@@ -348,18 +348,18 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF10242A), Night, Color(0xFF080D12))
+                        colors = listOf(Color(0xFF102329), Color(0xFF091418), Color(0xFF071014))
                     )
                 )
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 92.dp)
             ) {
                 Spacer(Modifier.height(22.dp))
                 Header()
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(16.dp))
                 Crossfade(targetState = selectedTab, modifier = Modifier.weight(1f).fillMaxWidth(), label = "mainTabTransition") { tab ->
                     when (tab) {
                         0 -> ChatsHubScreen(accessToken)
@@ -470,7 +470,7 @@ private fun ChatsHubScreen(accessToken: String) {
     Spacer(Modifier.height(14.dp))
     Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     Text(inboxStatus, color = Muted, fontSize = 11.sp)
-    LazyColumn(modifier = Modifier.fillMaxWidth().height(170.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().weight(0.34f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         items(inbox, key = { it.id }) { item ->
             val label = when {
                 item.type == "global" -> "ChatVerse Global"
@@ -542,7 +542,7 @@ private fun ChatsHubScreen(accessToken: String) {
     ) { Text(if (searching) "Searching..." else "Search users") }
     Spacer(Modifier.height(8.dp))
     Text(status, color = Muted, fontSize = 12.sp)
-    LazyColumn(modifier = Modifier.fillMaxWidth().height(300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().weight(0.66f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(results, key = { it.id }) { profile ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = Panel),
@@ -667,7 +667,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     Text(status, color = Muted, fontSize = 11.sp)
     if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(8.dp))
-    LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
             AnimatedVisibility(
@@ -1506,7 +1506,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         )
     }
     Spacer(Modifier.height(8.dp))
-    LazyColumn(Modifier.fillMaxWidth().height(390.dp), contentPadding = PaddingValues(vertical = 8.dp),
+    LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(messages, key = { it.id }) { message ->
             val mine = message.senderId == myUserId
