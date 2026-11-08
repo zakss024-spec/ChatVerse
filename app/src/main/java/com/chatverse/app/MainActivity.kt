@@ -84,6 +84,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -169,17 +170,11 @@ private suspend fun supabaseCall(path: String, token: String, method: String = "
 
 @Composable
 private fun BrandMark(size: androidx.compose.ui.unit.Dp = 64.dp) {
-    Box(
-        modifier = Modifier.size(size).clip(RoundedCornerShape(size * 0.34f))
-            .background(Brush.linearGradient(listOf(Color(0xFF9BFFE5), Color(0xFF43CBB6), Color(0xFF247D91)))),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(Modifier.fillMaxSize().padding(size * 0.09f).clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "ChatVerse",
-                tint = Color(0xFF06171A), modifier = Modifier.size(size * 0.52f))
-        }
-    }
+    androidx.compose.foundation.Image(
+        painter = painterResource(id = R.drawable.chatverse_logo),
+        contentDescription = "ChatVerse",
+        modifier = Modifier.size(size)
+    )
 }
 
 @Composable
@@ -365,14 +360,13 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 Spacer(Modifier.height(22.dp))
                 Header()
                 Spacer(Modifier.height(28.dp))
-                Crossfade(targetState = selectedTab, label = "mainTabTransition") { tab ->
+                Crossfade(targetState = selectedTab, modifier = Modifier.weight(1f).fillMaxWidth(), label = "mainTabTransition") { tab ->
                     when (tab) {
                         0 -> ChatsHubScreen(accessToken)
                         1 -> GroupsScreen(accessToken)
                         else -> ProfileScreen(accessToken, onLogout)
                     }
                 }
-                Spacer(Modifier.height(100.dp))
             }
 
             GlassNavigation(
