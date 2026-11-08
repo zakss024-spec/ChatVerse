@@ -384,7 +384,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
             } else {
                 val id = JSONObject(userResult.second).optString("id")
                 userId = id
-                val profileResult = supabaseCall("/rest/v1/profiles?id=eq.\$id&select=id,username,display_name,bio", accessToken)
+                val profileResult = supabaseCall("/rest/v1/profiles?id=eq.$id&select=id,username,display_name,bio", accessToken)
                 if (profileResult.first in 200..299) {
                     val rows = org.json.JSONArray(profileResult.second)
                     if (rows.length() > 0) {
@@ -394,7 +394,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
                         bio = row.optString("bio")
                         status = "Profil tersinkron"
                     } else status = "Profil belum tersedia."
-                } else status = "Gagal memuat profil (\${profileResult.first})."
+                } else status = "Gagal memuat profil (${profileResult.first})."
             }
         } catch (_: Exception) {
             status = "Tidak dapat terhubung. Periksa internet."
@@ -415,8 +415,8 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
         if (saving && userId.isNotBlank()) {
             try {
                 val body = JSONObject().put("display_name", displayName.trim()).put("username", username.trim()).put("bio", bio.trim())
-                val result = supabaseCall("/rest/v1/profiles?id=eq.\$userId", accessToken, "PATCH", body)
-                status = if (result.first in 200..299) "Profil berhasil disimpan." else "Gagal menyimpan (\${result.first}). Username mungkin sudah dipakai."
+                val result = supabaseCall("/rest/v1/profiles?id=eq.$userId", accessToken, "PATCH", body)
+                status = if (result.first in 200..299) "Profil berhasil disimpan." else "Gagal menyimpan (${result.first}). Username mungkin sudah dipakai."
             } catch (_: Exception) {
                 status = "Gagal menyimpan. Periksa koneksi."
             }
