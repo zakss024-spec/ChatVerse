@@ -1,6 +1,11 @@
 package com.chatverse.app
 
 import android.os.Bundle
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
@@ -79,6 +84,59 @@ import androidx.compose.ui.unit.sp
 
 private val httpClient = OkHttpClient()
 private val jsonType = "application/json; charset=utf-8".toMediaType()
+
+private data class UploadedChatMedia(val path: String, val mimeType: String, val size: Long, val name: String)
+
+private suspend fun uploadChatMedia(context: Context, accessToken: String, conversationId: String, userId: String, uri: Uri): UploadedChatMedia? =
+    withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val mime = resolver.getType(uri) ?: return@withContext null
+        if (mime !in setOf("image/jpeg", "image/png", "image/webp", "video/mp4", "application/pdf")) return@withContext null
+        val bytes = resolver.openInputStream(uri)?.use { input ->
+            val output = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                total += count
+                if (total > 20 * 1024 * 1024) return@withContext null
+                output.write(buffer, 0, count)
+            }
+            output.toByteArray()
+        } ?: return@withContext null
+        if (bytes.isEmpty()) return@withContext null
+        val rawName = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        } ?: "attachment"
+        val safeName = rawName.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(80).ifBlank { "attachment" }
+        val path = "\$conversationId/\$userId/\${System.currentTimeMillis()}_\$safeName"
+        val encodedPath = path.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+        val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/storage/v1/object/chat-media/" + encodedPath)
+            .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            .addHeader("Authorization", "Bearer \$accessToken").addHeader("Content-Type", mime)
+            .addHeader("x-upsert", "false").post(bytes.toRequestBody(mime.toMediaType())).build()
+        httpClient.newCall(request).execute().use { response -> if (!response.isSuccessful) return@withContext null }
+        UploadedChatMedia(path, mime, bytes.size.toLong(), safeName)
+    }
+
+private suspend fun openChatMedia(context: Context, accessToken: String, path: String): Boolean =
+    withContext(Dispatchers.IO) {
+        val encodedPath = path.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+        val body = JSONObject().put("expiresIn", 3600).toString().toRequestBody(jsonType)
+        val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/storage/v1/object/sign/chat-media/" + encodedPath)
+            .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY).addHeader("Authorization", "Bearer \$accessToken")
+            .addHeader("Content-Type", "application/json").post(body).build()
+        val signedUrl = httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@withContext false
+            val json = JSONObject(response.body?.string().orEmpty())
+            val value = json.optString("signedURL").ifBlank { json.optString("signedUrl") }
+            if (value.startsWith("http")) value else BuildConfig.SUPABASE_URL + value
+        }
+        withContext(Dispatchers.Main) {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signedUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+        }
+    }
 
 private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null): Pair<Int, String> =
     withContext(Dispatchers.IO) {
@@ -451,7 +509,33 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     var editingMessageId by remember { mutableStateOf("") }
     var editDraft by remember { mutableStateOf("") }
     var deletingMessage by remember { mutableStateOf<GlobalMessage?>(null) }
+    var uploadingMedia by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val mediaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && myUserId.isNotBlank()) {
+            uploadingMedia = true
+            scope.launch {
+                try {
+                    val uploaded = uploadChatMedia(context, accessToken, conversationId, myUserId, uri)
+                    if (uploaded == null) status = "File tidak didukung atau melebihi batas 20 MB."
+                    else {
+                        val type = when {
+                            uploaded.mimeType.startsWith("image/") -> "image"
+                            uploaded.mimeType.startsWith("video/") -> "video"
+                            else -> "file"
+                        }
+                        val body = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId)
+                            .put("message_type", type).put("content", uploaded.name).put("media_path", uploaded.path)
+                            .put("media_mime_type", uploaded.mimeType).put("media_size_bytes", uploaded.size)
+                        val sent = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
+                        status = if (sent.first in 200..299) "Lampiran berhasil dikirim." else "File terunggah, tetapi pesan gagal dikirim (" + sent.first + ")."
+                    }
+                } catch (_: Exception) { status = "Gagal mengirim lampiran. Periksa koneksi." }
+                finally { uploadingMedia = false }
+            }
+        }
+    }
 
     LaunchedEffect(accessToken, conversationId) {
         try {
@@ -465,7 +549,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
                 peerTyping = typingResponse.first in 200..299 && org.json.JSONArray(typingResponse.second).length() > 0
-                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,deleted_at,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
+                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,deleted_at,media_path,media_mime_type,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
                     val loaded = mutableListOf<GlobalMessage>()
@@ -489,7 +573,9 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                             row.optString("reply_to_message_id").takeIf { it.isNotBlank() && it != "null" }.orEmpty(),
                             reply?.optString("content").orEmpty(),
                             reply?.optString("sender_id").orEmpty(),
-                            row.optString("deleted_at").let { it.isNotBlank() && it != "null" }
+                            row.optString("deleted_at").let { it.isNotBlank() && it != "null" },
+                            row.optString("media_path").takeIf { it != "null" }.orEmpty(),
+                            row.optString("media_mime_type").takeIf { it != "null" }.orEmpty()
                         ))
                     }
                     messages = loaded
@@ -528,7 +614,20 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                         )
                         Spacer(Modifier.height(4.dp))
                     }
-                    Text(if (item.isDeleted) "Pesan telah dihapus" else item.content, color = if (item.isDeleted) Muted else Color.White, fontSize = 14.sp)
+                    if (item.mediaPath.isNotBlank() && !item.isDeleted) {
+                        TextButton(onClick = {
+                            scope.launch {
+                                val opened = openChatMedia(context, accessToken, item.mediaPath)
+                                if (!opened) status = "Lampiran tidak dapat dibuka."
+                            }
+                        }) {
+                            Text(if (item.mediaMime.startsWith("image/")) "Buka foto • " + item.content
+                                else if (item.mediaMime.startsWith("video/")) "Buka video • " + item.content
+                                else "Buka dokumen • " + item.content, color = Mint, fontSize = 12.sp, maxLines = 2)
+                        }
+                    } else {
+                        Text(if (item.isDeleted) "Pesan telah dihapus" else item.content, color = if (item.isDeleted) Muted else Color.White, fontSize = 14.sp)
+                    }
                     if (mine) {
                         Text(
                             if (item.isRead) "Read" else if (item.isDelivered) "Delivered" else "Sent",
@@ -620,6 +719,9 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         Spacer(Modifier.height(6.dp))
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { mediaPicker.launch(arrayOf("image/jpeg", "image/png", "image/webp", "video/mp4", "application/pdf")) }, enabled = !uploadingMedia && !sending) {
+            Icon(Icons.Rounded.Add, contentDescription = "Lampirkan file", tint = Mint)
+        }
         OutlinedTextField(value = draft, onValueChange = { value ->
             draft = value.take(2000)
             scope.launch {
@@ -635,7 +737,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             }
         }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
         Spacer(Modifier.width(8.dp))
-        Button(enabled = draft.isNotBlank() && !sending && myUserId.isNotBlank(), onClick = {
+        Button(enabled = draft.isNotBlank() && !sending && !uploadingMedia && myUserId.isNotBlank(), onClick = {
             val content = draft.trim()
             val replyId = replyingTo?.id
             sending = true
@@ -659,11 +761,11 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                     sending = false
                 }
             }
-        }) { Text(if (sending) "..." else "Send") }
+        }) { Text(if (uploadingMedia) "Upload..." else if (sending) "..." else "Send") }
     }
 }
 
-private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false, val replyToId: String = "", val replyContent: String = "", val replySenderId: String = "", val isDeleted: Boolean = false)
+private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false, val replyToId: String = "", val replyContent: String = "", val replySenderId: String = "", val isDeleted: Boolean = false, val mediaPath: String = "", val mediaMime: String = "")
 
 @Composable
 private fun GlobalChatScreen(accessToken: String) {
