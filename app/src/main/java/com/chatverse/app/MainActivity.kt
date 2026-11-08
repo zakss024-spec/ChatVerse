@@ -418,7 +418,7 @@ private fun ChatsHubScreen(accessToken: String) {
 
     Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
-    Button(onClick = { showGlobal = true }, modifier = Modifier.fillMaxWidth()) { Text("Open ChatVerse Global") }
+    AnimatedActionButton("Open ChatVerse Global", Modifier.fillMaxWidth()) { showGlobal = true }
     Spacer(Modifier.height(14.dp))
     Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     Text(inboxStatus, color = Muted, fontSize = 11.sp)
@@ -1459,6 +1459,32 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun AnimatedActionButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = spring(),
+        label = "actionButtonPress"
+    )
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Mint)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = Night, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
 
