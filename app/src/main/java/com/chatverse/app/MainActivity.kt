@@ -83,6 +83,10 @@ private suspend fun supabaseCall(path: String, token: String, method: String = "
         when (method) {
             "PATCH" -> builder.patch((payload ?: JSONObject()).toString().toRequestBody(jsonType))
             "POST" -> builder.post((payload ?: JSONObject()).toString().toRequestBody(jsonType))
+            "UPSERT" -> {
+                builder.addHeader("Prefer", "resolution=merge-duplicates,return=minimal")
+                builder.post((payload ?: JSONObject()).toString().toRequestBody(jsonType))
+            }
             else -> builder.get()
         }
         httpClient.newCall(builder.build()).execute().use { response ->
@@ -513,7 +517,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                         .put("user_id", myUserId)
                         .put("is_typing", draft.isNotBlank())
                         .put("updated_at", java.time.Instant.now().toString())
-                    supabaseCall("/rest/v1/conversation_typing?on_conflict=conversation_id,user_id", accessToken, "POST", typingBody)
+                    supabaseCall("/rest/v1/conversation_typing?on_conflict=conversation_id,user_id", accessToken, "UPSERT", typingBody)
                 }
             }
         }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
