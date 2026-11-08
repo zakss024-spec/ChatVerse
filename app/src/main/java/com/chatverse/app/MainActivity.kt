@@ -227,7 +227,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 Spacer(Modifier.height(28.dp))
                 when (selectedTab) {
                     0 -> ChatsHubScreen(accessToken)
-                    1 -> GroupsScreen()
+                    1 -> GroupsScreen(accessToken)
                     else -> ProfileScreen(accessToken, onLogout)
                 }
                 Spacer(Modifier.height(100.dp))
@@ -805,14 +805,215 @@ private fun ChatRow(chat: ChatItem) {
 }
 
 @Composable
-private fun GroupsScreen() {
-    Text("Communities", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(8.dp))
-    Text("Your group conversations will appear here.", color = Muted, fontSize = 13.sp)
-    Spacer(Modifier.height(20.dp))
-    FeatureCard("Create a group", "Bring friends together in one conversation.")
+private fun GroupsScreen(accessToken: String) {
+    var groups by remember { mutableStateOf(listOf<Pair<String, String>>()) }
+    var title by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf(listOf<SearchProfile>()) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    var status by remember { mutableStateOf("Memuat grup...") }
+    var busy by remember { mutableStateOf(false) }
+    var activeId by remember { mutableStateOf("") }
+    var activeTitle by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(accessToken) {
+        while (true) {
+            try {
+                val response = supabaseCall("/rest/v1/conversations?type=eq.group&select=id,title,created_at&order=created_at.desc", accessToken)
+                if (response.first in 200..299) {
+                    val rows = org.json.JSONArray(response.second)
+                    val loaded = mutableListOf<Pair<String, String>>()
+                    for (i in 0 until rows.length()) {
+                        val row = rows.getJSONObject(i)
+                        loaded.add(row.optString("id") to row.optString("title", "Group"))
+                    }
+                    groups = loaded
+                    status = if (loaded.isEmpty()) "Belum ada grup. Buat grup pertamamu!" else "Grup yang kamu ikuti"
+                } else status = "Grup belum dapat dimuat (" + response.first + ")."
+            } catch (_: Exception) {
+                status = "Periksa koneksi untuk memuat grup."
+            }
+            delay(10000)
+        }
+    }
+
+    if (activeId.isNotBlank()) {
+        Column {
+            TextButton(onClick = { activeId = ""; activeTitle = "" }) { Text("← Kembali ke Groups", color = Mint) }
+            GroupChatScreen(accessToken, activeId, activeTitle)
+        }
+        return
+    }
+
+    Text("Groups", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(6.dp))
+    Text("Buat ruang obrolan bersama teman-temanmu.", color = Muted, fontSize = 12.sp)
     Spacer(Modifier.height(12.dp))
-    FeatureCard("Discover conversations", "Find and join spaces shared with you.")
+    Text(status, color = Mint, fontSize = 11.sp)
+    LazyColumn(Modifier.fillMaxWidth().height(145.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(groups, key = { it.first }) { group ->
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(17.dp),
+                modifier = Modifier.fillMaxWidth().clickable { activeId = group.first; activeTitle = group.second }) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF24564F)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = Mint)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(group.second, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("Buka percakapan grup", color = Muted, fontSize = 11.sp)
+                    }
+                    Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Cyan)
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    Text("Create a group", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+    OutlinedTextField(value = title, onValueChange = { title = it.take(60) }, label = { Text("Nama grup") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = query, onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+        label = { Text("Cari username teman") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    Button(onClick = {
+        busy = true
+        scope.launch {
+            try {
+                val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+                val response = supabaseCall("/rest/v1/profiles?username=ilike.*" + encoded + "*&select=id,username,display_name&limit=15", accessToken)
+                if (response.first in 200..299) {
+                    val rows = org.json.JSONArray(response.second)
+                    val found = mutableListOf<SearchProfile>()
+                    for (i in 0 until rows.length()) {
+                        val row = rows.getJSONObject(i)
+                        found.add(SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name")))
+                    }
+                    results = found
+                    status = if (found.isEmpty()) "Username tidak ditemukan." else "Ketuk nama untuk memilih anggota."
+                } else status = "Pencarian gagal (" + response.first + ")."
+            } catch (_: Exception) { status = "Tidak dapat mencari pengguna." }
+            finally { busy = false }
+        }
+    }, enabled = query.length >= 2 && !busy, modifier = Modifier.fillMaxWidth()) {
+        Text(if (busy) "Mencari..." else "Cari anggota")
+    }
+    if (results.isNotEmpty()) {
+        LazyColumn(Modifier.fillMaxWidth().height(115.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            items(results, key = { it.id }) { person ->
+                val chosen = selected.contains(person.id)
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (chosen) Color(0xFF24564F) else Panel)
+                    .clickable { selected = if (chosen) selected - person.id else selected + person.id }
+                    .padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(person.displayName.ifBlank { person.username }, color = Color.White, fontSize = 13.sp)
+                        Text("@" + person.username, color = Muted, fontSize = 10.sp)
+                    }
+                    Text(if (chosen) "Dipilih ✓" else "Pilih", color = if (chosen) Mint else Cyan, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+    Text(selected.size.toString() + " anggota dipilih • kamu otomatis menjadi admin", color = Muted, fontSize = 11.sp)
+    Button(onClick = {
+        busy = true
+        scope.launch {
+            try {
+                val memberArray = org.json.JSONArray()
+                selected.forEach { memberArray.put(it) }
+                val body = JSONObject().put("p_title", title.trim()).put("p_member_ids", memberArray)
+                val result = supabaseCall("/rest/v1/rpc/create_group_conversation", accessToken, "POST", body)
+                if (result.first in 200..299) {
+                    val newId = result.second.trim().trim('"')
+                    if (newId.isNotBlank()) {
+                        activeId = newId
+                        activeTitle = title.trim()
+                        title = ""
+                        query = ""
+                        results = emptyList()
+                        selected = emptySet()
+                        status = "Grup berhasil dibuat."
+                    } else status = "Grup dibuat. Muat ulang daftar grup."
+                } else status = "Gagal membuat grup (" + result.first + "). Periksa nama dan anggota."
+            } catch (_: Exception) { status = "Gagal membuat grup. Periksa koneksi." }
+            finally { busy = false }
+        }
+    }, enabled = title.trim().length >= 2 && !busy, modifier = Modifier.fillMaxWidth()) {
+        Text(if (busy) "Memproses..." else "Buat grup")
+    }
+}
+
+@Composable
+private fun GroupChatScreen(accessToken: String, conversationId: String, title: String) {
+    var myUserId by remember { mutableStateOf("") }
+    var messages by remember { mutableStateOf(listOf<GlobalMessage>()) }
+    var draft by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Menghubungkan...") }
+    var sending by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(accessToken, conversationId) {
+        try {
+            val user = supabaseCall("/auth/v1/user", accessToken)
+            if (user.first !in 200..299) {
+                status = "Sesi login perlu diperbarui."
+                return@LaunchedEffect
+            }
+            myUserId = JSONObject(user.second).optString("id")
+            while (true) {
+                val result = supabaseCall("/rest/v1/messages?conversation_id=eq." + conversationId + "&select=id,sender_id,content,deleted_at&order=created_at.asc&limit=150", accessToken)
+                if (result.first in 200..299) {
+                    val rows = org.json.JSONArray(result.second)
+                    val loaded = mutableListOf<GlobalMessage>()
+                    for (i in 0 until rows.length()) {
+                        val row = rows.getJSONObject(i)
+                        loaded.add(GlobalMessage(row.optString("id"), row.optString("sender_id"), row.optString("content"), isDeleted = !row.isNull("deleted_at")))
+                    }
+                    messages = loaded
+                    status = "Grup • pembaruan otomatis"
+                } else status = "Tidak dapat memuat pesan (" + result.first + ")."
+                delay(4000)
+            }
+        } catch (_: Exception) { status = "Koneksi terputus. Periksa internet." }
+    }
+
+    Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+    Text(status, color = Mint, fontSize = 11.sp)
+    Spacer(Modifier.height(8.dp))
+    LazyColumn(Modifier.fillMaxWidth().height(390.dp), contentPadding = PaddingValues(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(messages, key = { it.id }) { message ->
+            val mine = message.senderId == myUserId
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                Text(if (mine) "You" else "User " + message.senderId.take(6), color = if (mine) Mint else Cyan,
+                    fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                Box(Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(16.dp))
+                    .background(if (mine) Color(0xFF24564F) else Panel).padding(horizontal = 13.dp, vertical = 10.dp)) {
+                    Text(if (message.isDeleted) "Pesan telah dihapus" else message.content,
+                        color = if (message.isDeleted) Muted else Color.White, fontSize = 14.sp)
+                }
+            }
+        }
+        if (messages.isEmpty()) item { Text("Belum ada pesan di grup ini.", color = Muted, fontSize = 12.sp) }
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(value = draft, onValueChange = { draft = it.take(2000) },
+            placeholder = { Text("Tulis ke grup...") }, modifier = Modifier.weight(1f), maxLines = 3)
+        Spacer(Modifier.width(7.dp))
+        Button(enabled = draft.isNotBlank() && !sending && myUserId.isNotBlank(), onClick = {
+            val content = draft.trim()
+            sending = true
+            scope.launch {
+                try {
+                    val payload = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId)
+                        .put("message_type", "text").put("content", content)
+                    val result = supabaseCall("/rest/v1/messages", accessToken, "POST", payload)
+                    if (result.first in 200..299) draft = "" else status = "Pesan gagal dikirim (" + result.first + ")."
+                } catch (_: Exception) { status = "Gagal mengirim pesan." }
+                finally { sending = false }
+            }
+        }) { Text(if (sending) "..." else "Send") }
+    }
 }
 
 @Composable
