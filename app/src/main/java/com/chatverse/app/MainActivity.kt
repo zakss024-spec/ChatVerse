@@ -273,7 +273,7 @@ private fun AuthGate() {
                 Text(if (isRegister) "Buat akun dan mulai terhubung." else "Your conversations, all in one place.",
                     color = Muted, fontSize = 13.sp)
                 if (isRegister) OutlinedTextField(
-                    value = username, onValueChange = { username = it }, label = { Text("Username") },
+                    value = username, onValueChange = { value -> username = value.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '_' || ch == '.' }.take(30) }, label = { Text("Username") },
                     singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White, unfocusedTextColor = Color.White,
@@ -1706,9 +1706,12 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Text(status, color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(16.dp))
     OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(value = username, onValueChange = { username = it.lowercase().replace(" ", "") }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = username, onValueChange = { value -> username = value.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '_' || ch == '.' }.take(30) }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = bio, onValueChange = { bio = it.take(160) }, label = { Text("Bio (maks. 160 karakter)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-    Button(onClick = { saving = true }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp),
+    Button(onClick = {
+            if (!username.trim().matches(Regex("[a-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
+            else saving = true
+        }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)) {
         if (saving) {
             androidx.compose.material3.CircularProgressIndicator(
