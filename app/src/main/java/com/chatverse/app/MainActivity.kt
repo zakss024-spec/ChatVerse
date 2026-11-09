@@ -2172,6 +2172,8 @@ private fun CommunitiesScreen(accessToken: String) {
     var draft by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Memuat komunitas...") }
     var busy by remember { mutableStateOf(false) }
+    var pendingOwnershipTransfer by remember { mutableStateOf<CommunityMemberItem?>(null) }
+    var showDeleteCommunityConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     suspend fun refreshCommunities() {
@@ -2286,6 +2288,61 @@ private fun CommunitiesScreen(accessToken: String) {
 
     if (selectedCommunity != null) {
         val current = selectedCommunity!!
+        if (pendingOwnershipTransfer != null) {
+            val target = pendingOwnershipTransfer!!
+            AlertDialog(
+                onDismissRequest = { if (!busy) pendingOwnershipTransfer = null },
+                title = { Text("Serahkan kepemilikan?") },
+                text = { Text(target.displayName + " akan menjadi owner komunitas. Role kamu akan berubah menjadi admin.") },
+                confirmButton = {
+                    TextButton(enabled = !busy, onClick = {
+                        scope.launch {
+                            busy = true
+                            try {
+                                val result = supabaseCall("/rest/v1/rpc/transfer_community_ownership", accessToken, "POST",
+                                    JSONObject().put("p_community_id", current.id).put("p_new_owner_id", target.userId))
+                                if (result.first in 200..299) {
+                                    pendingOwnershipTransfer = null
+                                    refreshCommunities()
+                                    refreshMembers(current.id)
+                                    status = "Kepemilikan komunitas berhasil diserahkan."
+                                } else status = "Gagal menyerahkan kepemilikan (" + result.first + ")."
+                            } finally { busy = false }
+                        }
+                    }) { Text(if (busy) "Memproses..." else "Serahkan") }
+                },
+                dismissButton = { TextButton(enabled = !busy, onClick = { pendingOwnershipTransfer = null }) { Text("Batal") } }
+            )
+        }
+        if (showDeleteCommunityConfirm) {
+            AlertDialog(
+                onDismissRequest = { if (!busy) showDeleteCommunityConfirm = false },
+                title = { Text("Hapus komunitas?") },
+                text = { Text("Komunitas " + current.name + ", channel, dan keanggotaannya akan dihapus. Tindakan ini tidak dapat dibatalkan.") },
+                confirmButton = {
+                    TextButton(enabled = !busy, onClick = {
+                        scope.launch {
+                            busy = true
+                            try {
+                                val result = supabaseCall("/rest/v1/rpc/delete_community", accessToken, "POST",
+                                    JSONObject().put("p_community_id", current.id))
+                                if (result.first in 200..299) {
+                                    showDeleteCommunityConfirm = false
+                                    selectedCommunity = null
+                                    selectedChannel = null
+                                    channels = emptyList()
+                                    posts = emptyList()
+                                    members = emptyList()
+                                    refreshCommunities()
+                                    status = "Komunitas berhasil dihapus."
+                                } else status = "Gagal menghapus komunitas (" + result.first + ")."
+                            } finally { busy = false }
+                        }
+                    }) { Text(if (busy) "Menghapus..." else "Hapus", color = Color(0xFFFF7777)) }
+                },
+                dismissButton = { TextButton(enabled = !busy, onClick = { showDeleteCommunityConfirm = false }) { Text("Batal") } }
+            )
+        }
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { selectedCommunity = null; selectedChannel = null; channels = emptyList(); posts = emptyList() }) {
@@ -2307,6 +2364,9 @@ private fun CommunitiesScreen(accessToken: String) {
                             Text(member.role, color = Muted, fontSize = 10.sp)
                         }
                         if (roles[current.id] == "owner" && member.userId != myUserId && member.role != "owner") {
+                            TextButton(enabled = !busy, onClick = { pendingOwnershipTransfer = member }) {
+                                Text("Jadikan owner", color = Color(0xFFFFD27A), fontSize = 10.sp)
+                            }
                             TextButton(enabled = !busy, onClick = {
                                 scope.launch {
                                     busy = true
@@ -2377,7 +2437,12 @@ private fun CommunitiesScreen(accessToken: String) {
                         }) { Text("Tambah channel") }
                     }
                 }
-                TextButton(enabled = !busy, onClick = {
+                if (roles[current.id] == "owner") {
+                    Text("Owner tidak bisa keluar sebelum menyerahkan kepemilikan. Kamu juga bisa menghapus komunitas.", color = Muted, fontSize = 11.sp)
+                    TextButton(enabled = !busy, onClick = { showDeleteCommunityConfirm = true }) {
+                        Text("Hapus komunitas", color = Color(0xFFFF7777))
+                    }
+                } else TextButton(enabled = !busy, onClick = {
                     scope.launch {
                         busy = true
                         try {
@@ -2497,11 +2562,11 @@ private fun CallsScreen() {
         Text("Riwayat dan panggilan suara/video", color = Muted, fontSize = 12.sp)
         FeatureCard(
             "Calling belum dikonfigurasi",
-            "ChatVerse belum memiliki signaling WebRTC dan layanan STUN/TURN. Tombol panggilan belum ditampilkan agar tidak memberi kesan panggilan sudah berfungsi."
+            "Backend signaling panggilan sudah disiapkan, tetapi engine media WebRTC dan layanan STUN/TURN belum dikonfigurasi. Tombol panggilan belum ditampilkan agar tidak memberi kesan panggilan sudah berfungsi."
         )
         FeatureCard(
             "Yang masih diperlukan",
-            "Backend signaling, autentikasi peserta, izin mikrofon/kamera, penanganan koneksi, dan pengujian panggilan dua perangkat."
+            "Tabel signaling dan kontrol akses peserta sudah tersedia. Aplikasi masih membutuhkan engine media WebRTC, konfigurasi STUN/TURN, izin mikrofon/kamera, dan pengujian panggilan dua perangkat."
         )
     }
 }
