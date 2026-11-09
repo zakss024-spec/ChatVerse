@@ -317,7 +317,7 @@ private fun AuthGate() {
                     color = Muted, fontSize = 13.sp)
                 OutlinedTextField(
                     value = username,
-                    onValueChange = { value -> username = value.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '_' || ch == '.' }.take(30) },
+                    onValueChange = { value -> username = AuthValidation.normalizeUsername(value) },
                     label = { Text("Username") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -356,11 +356,11 @@ private fun AuthGate() {
                 Button(
                     onClick = {
                         when {
-                            !username.trim().matches(Regex("[a-z0-9_.]{3,30}")) ->
+                            !AuthValidation.isValidUsername(username.trim()) ->
                                 message = "Username harus 3–30 karakter: huruf kecil, angka, titik, atau garis bawah."
-                            password.length < 8 || password.length > 128 ->
+                            !AuthValidation.isValidPassword(password) ->
                                 message = "Password harus 8–128 karakter."
-                            isRegister && confirmPassword != password ->
+                            isRegister && !AuthValidation.passwordsMatch(password, confirmPassword) ->
                                 message = "Konfirmasi password belum cocok."
                             else -> {
                                 busy = true
@@ -2003,7 +2003,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Text(status, color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(16.dp))
     OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(value = username, onValueChange = { value -> username = value.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '_' || ch == '.' }.take(30) }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = username, onValueChange = { value -> username = AuthValidation.normalizeUsername(value) }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = bio, onValueChange = { bio = it.take(160) }, label = { Text("Bio (maks. 160 karakter)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
     Button(onClick = {
             if (!username.trim().matches(Regex("[a-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
