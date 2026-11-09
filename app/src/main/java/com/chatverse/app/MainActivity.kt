@@ -60,6 +60,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.MoreVert
@@ -451,13 +454,14 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 92.dp)
             ) {
                 Spacer(Modifier.height(22.dp))
-                Header(onProfileClick = { selectedTab = 3 })
+                Header(onProfileClick = { selectedTab = 4 })
                 Spacer(Modifier.height(16.dp))
                 Crossfade(targetState = selectedTab, modifier = Modifier.weight(1f).fillMaxWidth(), label = "mainTabTransition") { tab ->
                     when (tab) {
                         0 -> ChatsHubScreen(accessToken)
-                        1 -> GroupsScreen(accessToken)
-                        2 -> GlobalChatScreen(accessToken)
+                        1 -> UpdatesScreen()
+                        2 -> CommunitiesScreen(accessToken)
+                        3 -> CallsScreen()
                         else -> ProfileScreen(accessToken, onLogout)
                     }
                 }
@@ -509,6 +513,7 @@ private fun ChatsHubScreen(accessToken: String) {
     var searching by remember { mutableStateOf(false) }
     var activeId by remember { mutableStateOf("") }
     var activeTitle by remember { mutableStateOf("") }
+    var showGlobal by remember { mutableStateOf(false) }
     var inbox by remember { mutableStateOf(listOf<ConversationPreview>()) }
     var inboxStatus by remember { mutableStateOf("Memuat daftar chat...") }
     val scope = rememberCoroutineScope()
@@ -542,6 +547,14 @@ private fun ChatsHubScreen(accessToken: String) {
         }
     }
 
+    if (showGlobal) {
+        Column {
+            TextButton(onClick = { showGlobal = false }) { Text("← Kembali ke Chats", color = Mint) }
+            GlobalChatScreen(accessToken)
+        }
+        return
+    }
+
     if (activeId.isNotBlank()) {
         Column {
             TextButton(onClick = { activeId = ""; activeTitle = "" }) { Text("← Kembali ke Chats", color = Mint) }
@@ -559,6 +572,26 @@ private fun ChatsHubScreen(accessToken: String) {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
                 Text("Pesan pribadi dan percakapan terbaru", color = Muted, fontSize = 12.sp)
+            }
+        }
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF173C38)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable { showGlobal = true }
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Public, contentDescription = null, tint = Mint, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("ChatVerse Global", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("Masuk ke percakapan publik", color = Muted, fontSize = 12.sp)
+                    }
+                    Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(18.dp))
+                }
             }
         }
         item {
@@ -1728,6 +1761,65 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
 }
 
 @Composable
+private fun UpdatesScreen() {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Updates", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+        Text("Status dan kabar terbaru dari kontakmu", color = Muted, fontSize = 12.sp)
+        FeatureCard(
+            "Stories belum diaktifkan",
+            "Fitur Story 24 jam sedang menunggu tabel, penyimpanan privat, kontrol audiens, dan pengujian kedaluwarsa di backend."
+        )
+        FeatureCard(
+            "Close Friends",
+            "Daftar teman dekat dan pembatasan akses Story belum tersedia. Belum ada Story yang ditampilkan sebagai data asli."
+        )
+        FeatureCard(
+            "Privasi Updates",
+            "Pengaturan siapa yang dapat melihat dan membalas Story akan tersedia setelah kontrol akses server selesai."
+        )
+    }
+}
+
+@Composable
+private fun CommunitiesScreen(accessToken: String) {
+    Column(Modifier.fillMaxSize()) {
+        Text("Communities", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+        Text("Grup percakapan yang sudah tersedia", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(8.dp))
+        FeatureCard(
+            "Community channels belum tersedia",
+            "Saat ini halaman ini menampilkan grup percakapan ChatVerse yang sudah terhubung ke backend. Komunitas, announcement channel, dan penemuan komunitas belum dibuat."
+        )
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            GroupsScreen(accessToken)
+        }
+    }
+}
+
+@Composable
+private fun CallsScreen() {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Calls", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+        Text("Riwayat dan panggilan suara/video", color = Muted, fontSize = 12.sp)
+        FeatureCard(
+            "Calling belum dikonfigurasi",
+            "ChatVerse belum memiliki signaling WebRTC dan layanan STUN/TURN. Tombol panggilan belum ditampilkan agar tidak memberi kesan panggilan sudah berfungsi."
+        )
+        FeatureCard(
+            "Yang masih diperlukan",
+            "Backend signaling, autentikasi peserta, izin mikrofon/kamera, penanganan koneksi, dan pengujian panggilan dua perangkat."
+        )
+    }
+}
+
+@Composable
 private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     var userId by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
@@ -1762,7 +1854,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-    Text("Your profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+    Text("Settings & profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
     Text(status, color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(16.dp))
@@ -1836,9 +1928,10 @@ private fun GlassNavigation(
         verticalAlignment = Alignment.CenterVertically
     ) {
         NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect)
-        NavigationItem("Groups", Icons.Rounded.Groups, 1, selected, onSelect)
-        NavigationItem("Global", Icons.Rounded.Public, 2, selected, onSelect)
-        NavigationItem("Profile", Icons.Rounded.PersonOutline, 3, selected, onSelect)
+        NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect)
+        NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect)
+        NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect)
+        NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect)
     }
 }
 
