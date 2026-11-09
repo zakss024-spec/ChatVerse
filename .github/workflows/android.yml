@@ -38,31 +38,23 @@ jobs:
         run: gradle :app:assembleDebug
 
       - name: Android emulator install and launch smoke test
-        run: |
-          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-          export ANDROID_AVD_HOME="$HOME/.android/avd"
-          mkdir -p "$ANDROID_AVD_HOME"
-          echo "no" | avdmanager create avd -n chatverse-smoke -k "system-images;android-35;google_apis;x86_64" -d "pixel_2" -f
-          avdmanager list avd
-          emulator -avd chatverse-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect &
-          adb wait-for-device
-          boot_completed=""
-          for attempt in $(seq 1 60); do
-            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            if [ "$boot_completed" = "1" ]; then break; fi
-            sleep 5
-          done
-          if [ "$boot_completed" != "1" ]; then
-            adb logcat -d
-            exit 1
-          fi
-          adb install -r app/build/outputs/apk/debug/app-debug.apk
-          adb shell am start -n com.chatverse.app/.MainActivity
-          sleep 15
-          if [ -z "$(adb shell pidof com.chatverse.app)" ]; then
-            adb logcat -d
-            exit 1
-          fi
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n com.chatverse.app/.MainActivity
+            sleep 15
+            app_pid="$(adb shell pidof com.chatverse.app | tr -d '\r')"
+            if [ -z "$app_pid" ]; then
+              adb logcat -d
+              exit 1
+            fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
