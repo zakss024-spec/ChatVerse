@@ -39,8 +39,12 @@ jobs:
 
       - name: Android emulator install and launch smoke test
         run: |
-          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n chatverse-smoke -k "system-images;android-35;google_apis;x86_64" --device "pixel_2"
-          "$ANDROID_HOME/emulator/emulator" -avd chatverse-smoke -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "no" | avdmanager create avd -n chatverse-smoke -k "system-images;android-35;google_apis;x86_64" -d "pixel_2" -f
+          avdmanager list avd
+          emulator -avd chatverse-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect &
           adb wait-for-device
           boot_completed=""
           for attempt in $(seq 1 60); do
