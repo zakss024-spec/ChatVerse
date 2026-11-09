@@ -60,6 +60,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
@@ -405,7 +406,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            MaterialTheme(
+                colorScheme = androidx.compose.material3.darkColorScheme(
+                    primary = Mint,
+                    secondary = Cyan,
+                    background = Night,
+                    surface = Panel,
+                    onPrimary = Night,
+                    onSecondary = Night,
+                    onBackground = Color.White,
+                    onSurface = Color.White,
+                    onSurfaceVariant = Muted,
+                    outline = Muted.copy(alpha = 0.65f)
+                )
+            ) {
                 Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                     AuthGate()
                 }
@@ -443,6 +457,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     when (tab) {
                         0 -> ChatsHubScreen(accessToken)
                         1 -> GroupsScreen(accessToken)
+                        2 -> GlobalChatScreen(accessToken)
                         else -> ProfileScreen(accessToken, onLogout)
                     }
                 }
@@ -494,7 +509,6 @@ private fun ChatsHubScreen(accessToken: String) {
     var searching by remember { mutableStateOf(false) }
     var activeId by remember { mutableStateOf("") }
     var activeTitle by remember { mutableStateOf("") }
-    var showGlobal by remember { mutableStateOf(false) }
     var inbox by remember { mutableStateOf(listOf<ConversationPreview>()) }
     var inboxStatus by remember { mutableStateOf("Memuat daftar chat...") }
     val scope = rememberCoroutineScope()
@@ -528,13 +542,6 @@ private fun ChatsHubScreen(accessToken: String) {
         }
     }
 
-    if (showGlobal) {
-        Column {
-            TextButton(onClick = { showGlobal = false }) { Text("← Kembali ke Chats", color = Mint) }
-            GlobalChatScreen(accessToken)
-        }
-        return
-    }
     if (activeId.isNotBlank()) {
         Column {
             TextButton(onClick = { activeId = ""; activeTitle = "" }) { Text("← Kembali ke Chats", color = Mint) }
@@ -546,26 +553,19 @@ private fun ChatsHubScreen(accessToken: String) {
     Column(Modifier.fillMaxSize()) {
     Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
-    AnimatedActionButton("Open ChatVerse Global", Modifier.fillMaxWidth()) { showGlobal = true }
+    Text("Percakapan pribadi dan pesan terbaru", color = Muted, fontSize = 12.sp)
     Spacer(Modifier.height(14.dp))
     Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     Text(inboxStatus, color = Muted, fontSize = 11.sp)
     LazyColumn(modifier = Modifier.fillMaxWidth().weight(0.34f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        items(inbox, key = { it.id }) { item ->
-            val label = when {
-                item.type == "global" -> "ChatVerse Global"
-                item.type == "group" -> item.title.ifBlank { "Group chat" }
-                else -> item.peerName.ifBlank { "@" + item.peerUsername }
-            }
+        items(inbox.filterNot { it.type == "global" || it.type == "group" }, key = { it.id }) { item ->
+            val label = item.peerName.ifBlank { "@" + item.peerUsername }
             Card(
                 colors = CardDefaults.cardColors(containerColor = Panel),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth().clickable {
-                    if (item.type == "global") showGlobal = true
-                    else {
-                        activeId = item.id
-                        activeTitle = label
-                    }
+                    activeId = item.id
+                    activeTitle = label
                 }
             ) {
                 Column(Modifier.padding(13.dp)) {
@@ -1810,7 +1810,8 @@ private fun GlassNavigation(
     ) {
         NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect)
         NavigationItem("Groups", Icons.Rounded.Groups, 1, selected, onSelect)
-        NavigationItem("Profile", Icons.Rounded.PersonOutline, 2, selected, onSelect)
+        NavigationItem("Global", Icons.Rounded.Public, 2, selected, onSelect)
+        NavigationItem("Profile", Icons.Rounded.PersonOutline, 3, selected, onSelect)
     }
 }
 
