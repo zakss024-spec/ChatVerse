@@ -550,14 +550,23 @@ private fun ChatsHubScreen(accessToken: String) {
         return
     }
 
-    Column(Modifier.fillMaxSize()) {
-    Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(8.dp))
-    Text("Percakapan pribadi dan pesan terbaru", color = Muted, fontSize = 12.sp)
-    Spacer(Modifier.height(14.dp))
-    Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    Text(inboxStatus, color = Muted, fontSize = 11.sp)
-    LazyColumn(modifier = Modifier.fillMaxWidth().weight(0.34f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+        contentPadding = PaddingValues(bottom = 14.dp)
+    ) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+                Text("Pesan pribadi dan percakapan terbaru", color = Muted, fontSize = 12.sp)
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(inboxStatus, color = Muted, fontSize = 11.sp)
+            }
+        }
         items(inbox.filterNot { it.type == "global" || it.type == "group" }, key = { it.id }) { item ->
             val label = item.peerName.ifBlank { "@" + item.peerUsername }
             Card(
@@ -568,61 +577,80 @@ private fun ChatsHubScreen(accessToken: String) {
                     activeTitle = label
                 }
             ) {
-                Column(Modifier.padding(13.dp)) {
-                    Text(label, color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Muted, fontSize = 12.sp, maxLines = 1)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF294B4B)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(label.firstOrNull()?.uppercase() ?: "?", color = Mint, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Muted, fontSize = 12.sp, maxLines = 1)
+                    }
+                    Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat", tint = Mint, modifier = Modifier.size(18.dp))
                 }
             }
         }
-    }
-    Text("New message", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(
-        value = query,
-        onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        placeholder = { Text("Cari username...") }
-    )
-    val searchInteractionSource = remember { MutableInteractionSource() }
-    val searchPressed by searchInteractionSource.collectIsPressedAsState()
-    val searchScale by animateFloatAsState(
-        targetValue = if (searchPressed) 0.96f else 1f,
-        animationSpec = spring(),
-        label = "searchButtonPress"
-    )
-    Button(
-        onClick = {
-            searching = true
-            status = "Mencari pengguna..."
-            scope.launch {
-                try {
-                    val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-                    val response = supabaseCall("/rest/v1/profiles?username=ilike.*$encoded*&select=id,username,display_name&limit=20", accessToken)
-                    if (response.first in 200..299) {
-                        val array = org.json.JSONArray(response.second)
-                        val found = mutableListOf<SearchProfile>()
-                        for (i in 0 until array.length()) {
-                            val row = array.getJSONObject(i)
-                            found.add(SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name")))
-                        }
-                        results = found
-                        status = if (found.isEmpty()) "Pengguna tidak ditemukan." else "Pilih pengguna untuk membuka chat."
-                    } else status = "Pencarian gagal. Coba lagi."
-                } catch (_: Exception) {
-                    status = "Tidak dapat mencari pengguna. Periksa internet."
-                } finally {
-                    searching = false
-                }
+        if (inbox.none { it.type != "global" && it.type != "group" }) {
+            item {
+                FeatureCard("Belum ada chat pribadi", "Cari username di bawah untuk memulai percakapan.")
             }
-        },
-        enabled = query.length >= 2 && !searching,
-        interactionSource = searchInteractionSource,
-        modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = searchScale, scaleY = searchScale)
-    ) { Text(if (searching) "Searching..." else "Search users") }
-    Spacer(Modifier.height(8.dp))
-    Text(status, color = Muted, fontSize = 12.sp)
-    LazyColumn(modifier = Modifier.fillMaxWidth().weight(0.66f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(5.dp))
+                Text("New message", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Cari username...") }
+                )
+                val searchInteractionSource = remember { MutableInteractionSource() }
+                val searchPressed by searchInteractionSource.collectIsPressedAsState()
+                val searchScale by animateFloatAsState(
+                    targetValue = if (searchPressed) 0.96f else 1f,
+                    animationSpec = spring(),
+                    label = "searchButtonPress"
+                )
+                Button(
+                    onClick = {
+                        searching = true
+                        status = "Mencari pengguna..."
+                        scope.launch {
+                            try {
+                                val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+                                val response = supabaseCall("/rest/v1/profiles?username=ilike.*$encoded*&select=id,username,display_name&limit=20", accessToken)
+                                if (response.first in 200..299) {
+                                    val array = org.json.JSONArray(response.second)
+                                    val found = mutableListOf<SearchProfile>()
+                                    for (i in 0 until array.length()) {
+                                        val row = array.getJSONObject(i)
+                                        found.add(SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name")))
+                                    }
+                                    results = found
+                                    status = if (found.isEmpty()) "Pengguna tidak ditemukan." else "Pilih pengguna untuk membuka chat."
+                                } else status = "Pencarian gagal. Coba lagi."
+                            } catch (_: Exception) {
+                                status = "Tidak dapat mencari pengguna. Periksa internet."
+                            } finally {
+                                searching = false
+                            }
+                        }
+                    },
+                    enabled = query.length >= 2 && !searching,
+                    interactionSource = searchInteractionSource,
+                    modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = searchScale, scaleY = searchScale)
+                ) { Text(if (searching) "Searching..." else "Search users") }
+                Text(status, color = Muted, fontSize = 12.sp)
+            }
+        }
         items(results, key = { it.id }) { profile ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = Panel),
@@ -648,7 +676,6 @@ private fun ChatsHubScreen(accessToken: String) {
                 }
             }
         }
-    }
     }
 }
 
