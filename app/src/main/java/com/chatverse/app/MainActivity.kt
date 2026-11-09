@@ -39,6 +39,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -57,6 +58,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -413,7 +415,7 @@ private fun AuthGate() {
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)
+                    colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)
                 ) {
                     if (busy) {
                         androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = Night, strokeWidth = 2.dp)
@@ -435,13 +437,47 @@ private fun AuthGate() {
 }
 private val Night = Color(0xFF071014)
 private val Panel = Color(0xFF142329)
-private val Mint = Color(0xFF68E5C1)
+private object AccentThemeState {
+    var accent by mutableStateOf(Color(0xFF68E5C1))
+    val onAccent: Color
+        get() {
+            val luminance = accent.red * 0.2126f + accent.green * 0.7152f + accent.blue * 0.0722f
+            return if (luminance > 0.52f) Night else Color.White
+        }
+}
+private val Mint: Color get() = AccentThemeState.accent
 private val Cyan = Color(0xFF69CBE8)
 private val Muted = Color(0xFF8FA5AA)
+
+private fun parseAccentColor(value: String): Color? {
+    val normalized = value.trim().let { if (it.startsWith("#")) it else "#$it" }
+    val argb = runCatching { android.graphics.Color.parseColor(normalized) }.getOrNull() ?: return null
+    return Color(
+        android.graphics.Color.red(argb) / 255f,
+        android.graphics.Color.green(argb) / 255f,
+        android.graphics.Color.blue(argb) / 255f,
+        1f
+    )
+}
+
+private fun accentColorHex(color: Color): String {
+    val red = (color.red * 255).toInt().coerceIn(0, 255)
+    val green = (color.green * 255).toInt().coerceIn(0, 255)
+    val blue = (color.blue * 255).toInt().coerceIn(0, 255)
+    return "#%02X%02X%02X".format(red, green, blue)
+}
+
+private fun applyAccentColor(context: Context, color: Color) {
+    AccentThemeState.accent = color
+    context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
+        .edit().putString("accent_hex", accentColorHex(color)).apply()
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val savedAccent = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE).getString("accent_hex", null)
+        savedAccent?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
         setContent {
             MaterialTheme(
                 colorScheme = androidx.compose.material3.darkColorScheme(
@@ -449,7 +485,7 @@ class MainActivity : ComponentActivity() {
                     secondary = Cyan,
                     background = Night,
                     surface = Panel,
-                    onPrimary = Night,
+                    onPrimary = AccentThemeState.onAccent,
                     onSecondary = Night,
                     onBackground = Color.White,
                     onSurface = Color.White,
@@ -1999,12 +2035,124 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Spacer(Modifier.height(20.dp))
     FeatureCard("Account security", "Akun terhubung ke Supabase Auth.")
     Spacer(Modifier.height(12.dp))
+    AccentThemeSection()
+    Spacer(Modifier.height(12.dp))
     AnimatedActionButton(
         label = "Sign out",
         modifier = Modifier.fillMaxWidth()
     ) { onLogout() }
     }
 }
+@Composable
+private fun AccentThemeSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var customHex by remember { mutableStateOf(accentColorHex(Mint)) }
+    var feedback by remember { mutableStateOf("") }
+    val presets = listOf(
+        "Emerald" to Color(0xFF68E5C1),
+        "Neon" to Color(0xFF39FF14),
+        "Cyan" to Color(0xFF00D5FF),
+        "Ocean" to Color(0xFF168BFF),
+        "Purple" to Color(0xFF8B5CF6),
+        "Violet" to Color(0xFFA78BFA),
+        "Rose" to Color(0xFFFF5DA2),
+        "Red" to Color(0xFFFF5C5C),
+        "Orange" to Color(0xFFFF8A3D),
+        "Amber" to Color(0xFFFFC247),
+        "White" to Color(0xFFF5F5F5)
+    )
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Theme & appearance", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text("Pilih warna aksen. Perubahan langsung diterapkan dan disimpan di perangkat.", color = Muted, fontSize = 12.sp)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            presets.forEach { preset ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        applyAccentColor(context, preset.second)
+                        customHex = accentColorHex(preset.second)
+                        feedback = "Warna ${preset.first} diterapkan."
+                    }.padding(vertical = 4.dp)
+                ) {
+                    Box(
+                        Modifier.size(34.dp)
+                            .clip(CircleShape)
+                            .background(preset.second)
+                            .border(
+                                if (AccentThemeState.accent == preset.second) 2.dp else 1.dp,
+                                if (AccentThemeState.accent == preset.second) Color.White else Muted,
+                                CircleShape
+                            )
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(preset.first, color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
+        OutlinedTextField(
+            value = customHex,
+            onValueChange = { customHex = it.take(7).uppercase() },
+            label = { Text("Custom color HEX") },
+            placeholder = { Text("#8B5CF6") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = Mint,
+                unfocusedBorderColor = Muted.copy(alpha = 0.55f),
+                focusedLabelColor = Mint,
+                unfocusedLabelColor = Muted,
+                cursorColor = Mint
+            )
+        )
+        Button(
+            onClick = {
+                val parsed = parseAccentColor(customHex)
+                if (parsed == null) {
+                    feedback = "Format warna tidak valid. Gunakan #RRGGBB."
+                } else {
+                    applyAccentColor(context, parsed)
+                    customHex = accentColorHex(parsed)
+                    feedback = "Custom color diterapkan."
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)
+        ) {
+            Text("Apply custom color", fontWeight = FontWeight.SemiBold)
+        }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1A1E)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Live preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Box(
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(Mint).padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("Chat bubble", color = AccentThemeState.onAccent, fontSize = 12.sp)
+                    }
+                }
+                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(26.dp))
+            }
+        }
+        if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
+    }
+}
+
 @Composable
 private fun FeatureCard(title: String, subtitle: String) {
     Card(
