@@ -418,7 +418,7 @@ private fun AuthGate() {
                     colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)
                 ) {
                     if (busy) {
-                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = Night, strokeWidth = 2.dp)
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = AccentThemeState.onAccent, strokeWidth = 2.dp)
                         Spacer(Modifier.width(9.dp))
                     }
                     Text(if (busy) "Connecting..." else if (isRegister) "Create account" else "Sign in",
@@ -1804,7 +1804,7 @@ private fun AnimatedActionButton(
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = Night, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(label, color = AccentThemeState.onAccent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
 
@@ -1826,7 +1826,7 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
             .padding(horizontal = 18.dp, vertical = 13.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(if (sending) "Mengirim…" else "Send", color = Night, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Text(if (sending) "Mengirim…" else "Send", color = AccentThemeState.onAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
 }
 
@@ -2009,11 +2009,11 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
             if (!username.trim().matches(Regex("[a-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
             else saving = true
         }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)) {
+        colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)) {
         if (saving) {
             androidx.compose.material3.CircularProgressIndicator(
                 modifier = Modifier.size(17.dp),
-                color = Night,
+                color = AccentThemeState.onAccent,
                 strokeWidth = 2.dp
             )
             Spacer(Modifier.width(9.dp))
