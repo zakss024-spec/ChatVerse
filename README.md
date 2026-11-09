@@ -7,7 +7,7 @@
 ## Current implementation
 
 - Android app scaffold using Kotlin, Jetpack Compose, Material 3, and OkHttp.
-- Username + password registration/login through the deployed username-auth Edge Function; Supabase Auth keeps a private random internal email mapping on the server.
+- Username + password registration/login through the deployed username-auth Edge Function; Supabase Auth keeps a private random internal email mapping on the server. New accounts without a recovery address do not yet have email-based password recovery.
 - Refresh-token persistence and session restoration.
 - Profile display/editing for username, display name, and bio.
 - Private conversations, group conversations, and ChatVerse Global room.
@@ -29,7 +29,7 @@ The following are **not implemented or not yet verified**:
 - Audio/video calls and WebRTC signaling/STUN/TURN infrastructure.
 - Push notifications.
 - Official developer account provisioning and verified backend badge for ZakssX.
-- Secure encrypted local token storage; session tokens currently use app preferences and require a dedicated secure-storage hardening pass.
+- Encrypted Android Keystore-backed session storage with one-time migration from the previous plaintext preferences; real-device key invalidation/restore testing is still pending.
 - Full integration, multi-account authorization, and real-device regression testing.
 
 Do not treat a visible screen or button as proof that a feature is fully functional.
