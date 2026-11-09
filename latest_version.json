@@ -1,0 +1,11 @@
+{
+  "versionCode": 1,
+  "versionName": "0.1.0",
+  "minimumSupportedVersionCode": 1,
+  "downloadUrl": "",
+  "sha256": "",
+  "releaseNotes": [
+    "Initial ChatVerse beta release.",
+    "Improved authentication and session handling."
+  ]
+}
