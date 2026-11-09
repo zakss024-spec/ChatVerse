@@ -1615,8 +1615,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
 }
 
     }
-}
-
+ 
 @Composable
 private fun AnimatedActionButton(
     label: String,
