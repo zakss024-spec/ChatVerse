@@ -8,8 +8,10 @@
 
 - Android app scaffold using Kotlin, Jetpack Compose, Material 3, and OkHttp.
 - Username + password registration/login through the deployed username-auth Edge Function; Supabase Auth keeps a private random internal email mapping on the server. New accounts without a recovery address do not yet have email-based password recovery.
-- Refresh-token persistence and session restoration.
+- Refresh-token persistence and session restoration using AES-GCM encryption backed by Android Keystore, including one-time migration from the previous plaintext preferences.
 - Profile display/editing for username, display name, and bio.
+- Matrix-style Welcome intro after a successful login; restored sessions skip the intro.
+- Five-tab navigation and persistent accent theme settings with 11 presets, custom HEX color, and live preview.
 - Private conversations, group conversations, and ChatVerse Global room.
 - Message sending, replies, edit/delete flows, typing status, read receipts/reactions where supported by the current schema.
 - Private chat media upload for JPEG, PNG, WebP, MP4, and PDF files, with signed-link opening.
@@ -29,7 +31,7 @@ The following are **not implemented or not yet verified**:
 - Audio/video calls and WebRTC signaling/STUN/TURN infrastructure.
 - Push notifications.
 - Official developer account provisioning and verified backend badge for ZakssX.
-- Encrypted Android Keystore-backed session storage with one-time migration from the previous plaintext preferences; real-device key invalidation/restore testing is still pending.
+- Real-device checks for Android Keystore key invalidation/restore, intro timing, and accent-color contrast are still pending.
 - Full integration, multi-account authorization, and real-device regression testing.
 
 Do not treat a visible screen or button as proof that a feature is fully functional.
@@ -69,7 +71,7 @@ The workflow runs:
 
 A successful Gradle build does not by itself prove the app is ready for beta. The emulator smoke test and real-device/backend scenarios must also pass.
 
-Latest known verification: run #77 passed unit tests, lint, and debug APK generation, but its emulator smoke test failed because the hosted emulator timed out while booting. The workflow boot allowance has since been increased; the current navigation/auth changes still require a fresh full CI run.
+Latest known verification: run #86 passed unit tests, lint, debug APK generation, and APK upload. Its Android emulator install/launch smoke test is still running; the artifact is not yet considered final.
 
 ## Local requirements
 

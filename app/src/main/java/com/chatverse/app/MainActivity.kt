@@ -28,11 +28,19 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -50,6 +58,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -91,6 +100,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -214,6 +225,7 @@ private fun AuthGate() {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var sessionLoading by remember { mutableStateOf(accessToken != null) }
+    var showWelcomeIntro by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (accessToken != null) {
@@ -265,11 +277,16 @@ private fun AuthGate() {
     }
 
     if (accessToken != null) {
-        ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
-            sessionStore.clear()
-            restoredSession = null
-            accessToken = null
-        })
+        if (showWelcomeIntro) {
+            WelcomeIntroScreen(onFinished = { showWelcomeIntro = false })
+        } else {
+            ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
+                sessionStore.clear()
+                restoredSession = null
+                accessToken = null
+                showWelcomeIntro = false
+            })
+        }
         return
     }
 
@@ -377,6 +394,7 @@ private fun AuthGate() {
                                                     sessionStore.save(token, refreshToken)
                                                     restoredSession = StoredSession(token, refreshToken)
                                                     accessToken = token
+                                                    showWelcomeIntro = true
                                                 } catch (_: Exception) {
                                                     message = "Sesi tidak dapat disimpan dengan aman. Coba lagi."
                                                     return@runOnUiThread
@@ -397,10 +415,10 @@ private fun AuthGate() {
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)
+                    colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)
                 ) {
                     if (busy) {
-                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = Night, strokeWidth = 2.dp)
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = AccentThemeState.onAccent, strokeWidth = 2.dp)
                         Spacer(Modifier.width(9.dp))
                     }
                     Text(if (busy) "Connecting..." else if (isRegister) "Create account" else "Sign in",
@@ -419,13 +437,47 @@ private fun AuthGate() {
 }
 private val Night = Color(0xFF071014)
 private val Panel = Color(0xFF142329)
-private val Mint = Color(0xFF68E5C1)
+private object AccentThemeState {
+    var accent by mutableStateOf(Color(0xFF68E5C1))
+    val onAccent: Color
+        get() {
+            val luminance = accent.red * 0.2126f + accent.green * 0.7152f + accent.blue * 0.0722f
+            return if (luminance > 0.52f) Night else Color.White
+        }
+}
+private val Mint: Color get() = AccentThemeState.accent
 private val Cyan = Color(0xFF69CBE8)
 private val Muted = Color(0xFF8FA5AA)
+
+private fun parseAccentColor(value: String): Color? {
+    val normalized = value.trim().let { if (it.startsWith("#")) it else "#$it" }
+    val argb = runCatching { android.graphics.Color.parseColor(normalized) }.getOrNull() ?: return null
+    return Color(
+        android.graphics.Color.red(argb) / 255f,
+        android.graphics.Color.green(argb) / 255f,
+        android.graphics.Color.blue(argb) / 255f,
+        1f
+    )
+}
+
+private fun accentColorHex(color: Color): String {
+    val red = (color.red * 255).toInt().coerceIn(0, 255)
+    val green = (color.green * 255).toInt().coerceIn(0, 255)
+    val blue = (color.blue * 255).toInt().coerceIn(0, 255)
+    return "#%02X%02X%02X".format(red, green, blue)
+}
+
+private fun applyAccentColor(context: Context, color: Color) {
+    AccentThemeState.accent = color
+    context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
+        .edit().putString("accent_hex", accentColorHex(color)).apply()
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val savedAccent = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE).getString("accent_hex", null)
+        savedAccent?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
         setContent {
             MaterialTheme(
                 colorScheme = androidx.compose.material3.darkColorScheme(
@@ -433,7 +485,7 @@ class MainActivity : ComponentActivity() {
                     secondary = Cyan,
                     background = Night,
                     surface = Panel,
-                    onPrimary = Night,
+                    onPrimary = AccentThemeState.onAccent,
                     onSecondary = Night,
                     onBackground = Color.White,
                     onSurface = Color.White,
@@ -1752,7 +1804,7 @@ private fun AnimatedActionButton(
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = Night, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(label, color = AccentThemeState.onAccent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
 
@@ -1774,7 +1826,81 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
             .padding(horizontal = 18.dp, vertical = 13.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(if (sending) "Mengirim…" else "Send", color = Night, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Text(if (sending) "Mengirim…" else "Send", color = AccentThemeState.onAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun WelcomeIntroScreen(onFinished: () -> Unit) {
+    var showText by remember { mutableStateOf(false) }
+    val rain = rememberInfiniteTransition(label = "matrixRain")
+    val phase by rain.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2800, easing = LinearEasing)
+        ),
+        label = "matrixRainPhase"
+    )
+    val columns = remember { List(16) { kotlin.random.Random.nextInt(0, 1800) } }
+
+    LaunchedEffect(Unit) {
+        delay(550)
+        showText = true
+        delay(2850)
+        onFinished()
+    }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawIntoCanvas { canvas ->
+                val native = canvas.nativeCanvas
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    textSize = 22f
+                }
+                val glyphs = "01アイウエオカキクケコサシスセソタチツテトナニヌネノ"
+                val columnWidth = size.width / columns.size
+                val cellHeight = 28f
+                columns.forEachIndexed { index, seed ->
+                    val speed = 0.62f + (index % 6) * 0.13f
+                    val offset = (phase * (size.height + 500f) * speed + seed) % (size.height + 500f)
+                    for (row in 0..9) {
+                        val y = offset - row * cellHeight
+                        if (y >= 0f && y <= size.height + cellHeight) {
+                            val glyphIndex = (seed + row * 13 + index * 7) % glyphs.length
+                            val alpha = if (row == 0) 230 else (65 + (13 - row) * 9).coerceIn(65, 180)
+                            paint.color = android.graphics.Color.argb(alpha, 55, 255, 150)
+                            native.drawText(glyphs[glyphIndex].toString(), index * columnWidth, y, paint)
+                        }
+                    }
+                }
+            }
+        }
+        AnimatedVisibility(
+            visible = showText,
+            enter = fadeIn(tween(650)),
+            exit = fadeOut(tween(350)),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Welcome to ChatVerse",
+                    color = Color.White,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.4).sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Developer:Zakss",
+                    color = Mint,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.1.sp
+                )
+            }
+        }
     }
 }
 
@@ -1883,11 +2009,11 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
             if (!username.trim().matches(Regex("[a-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
             else saving = true
         }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Night)) {
+        colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)) {
         if (saving) {
             androidx.compose.material3.CircularProgressIndicator(
                 modifier = Modifier.size(17.dp),
-                color = Night,
+                color = AccentThemeState.onAccent,
                 strokeWidth = 2.dp
             )
             Spacer(Modifier.width(9.dp))
@@ -1909,12 +2035,124 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Spacer(Modifier.height(20.dp))
     FeatureCard("Account security", "Akun terhubung ke Supabase Auth.")
     Spacer(Modifier.height(12.dp))
+    AccentThemeSection()
+    Spacer(Modifier.height(12.dp))
     AnimatedActionButton(
         label = "Sign out",
         modifier = Modifier.fillMaxWidth()
     ) { onLogout() }
     }
 }
+@Composable
+private fun AccentThemeSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var customHex by remember { mutableStateOf(accentColorHex(Mint)) }
+    var feedback by remember { mutableStateOf("") }
+    val presets = listOf(
+        "Emerald" to Color(0xFF68E5C1),
+        "Neon" to Color(0xFF39FF14),
+        "Cyan" to Color(0xFF00D5FF),
+        "Ocean" to Color(0xFF168BFF),
+        "Purple" to Color(0xFF8B5CF6),
+        "Violet" to Color(0xFFA78BFA),
+        "Rose" to Color(0xFFFF5DA2),
+        "Red" to Color(0xFFFF5C5C),
+        "Orange" to Color(0xFFFF8A3D),
+        "Amber" to Color(0xFFFFC247),
+        "White" to Color(0xFFF5F5F5)
+    )
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Theme & appearance", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text("Pilih warna aksen. Perubahan langsung diterapkan dan disimpan di perangkat.", color = Muted, fontSize = 12.sp)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            presets.forEach { preset ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        applyAccentColor(context, preset.second)
+                        customHex = accentColorHex(preset.second)
+                        feedback = "Warna ${preset.first} diterapkan."
+                    }.padding(vertical = 4.dp)
+                ) {
+                    Box(
+                        Modifier.size(34.dp)
+                            .clip(CircleShape)
+                            .background(preset.second)
+                            .border(
+                                if (AccentThemeState.accent == preset.second) 2.dp else 1.dp,
+                                if (AccentThemeState.accent == preset.second) Color.White else Muted,
+                                CircleShape
+                            )
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(preset.first, color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
+        OutlinedTextField(
+            value = customHex,
+            onValueChange = { customHex = it.take(7).uppercase() },
+            label = { Text("Custom color HEX") },
+            placeholder = { Text("#8B5CF6") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = Mint,
+                unfocusedBorderColor = Muted.copy(alpha = 0.55f),
+                focusedLabelColor = Mint,
+                unfocusedLabelColor = Muted,
+                cursorColor = Mint
+            )
+        )
+        Button(
+            onClick = {
+                val parsed = parseAccentColor(customHex)
+                if (parsed == null) {
+                    feedback = "Format warna tidak valid. Gunakan #RRGGBB."
+                } else {
+                    applyAccentColor(context, parsed)
+                    customHex = accentColorHex(parsed)
+                    feedback = "Custom color diterapkan."
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)
+        ) {
+            Text("Apply custom color", fontWeight = FontWeight.SemiBold)
+        }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1A1E)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Live preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Box(
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(Mint).padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("Chat bubble", color = AccentThemeState.onAccent, fontSize = 12.sp)
+                    }
+                }
+                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(26.dp))
+            }
+        }
+        if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
+    }
+}
+
 @Composable
 private fun FeatureCard(title: String, subtitle: String) {
     Card(
