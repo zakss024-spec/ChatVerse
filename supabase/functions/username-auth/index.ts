@@ -14,7 +14,8 @@ function readKey(name: string): string | null {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value);
-    return parsed.default ?? Object.values(parsed)[0] ?? null;
+    const candidate = parsed.default ?? Object.values(parsed)[0];
+    return typeof candidate === "string" ? candidate : null;
   } catch {
     return value;
   }
@@ -76,7 +77,7 @@ async function clearRateLimits(keys: string[]) {
 
 async function findProfile(username: string) {
   const response = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?select=id,username&username=ilike.${encodeURIComponent(username)}&limit=1`,
+    `${supabaseUrl}/rest/v1/profiles?select=id,username&username=eq.${encodeURIComponent(username)}&limit=1`,
     { headers: adminHeaders() },
   );
   if (!response.ok) throw new Error("Profile lookup failed");
