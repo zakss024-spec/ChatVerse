@@ -204,8 +204,9 @@ private fun BrandMark(size: androidx.compose.ui.unit.Dp = 64.dp) {
 @Composable
 private fun AuthGate() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember { context.getSharedPreferences("chatverse_session", android.content.Context.MODE_PRIVATE) }
-    var accessToken by remember { mutableStateOf(prefs.getString("access_token", null)) }
+    val sessionStore = remember { SecureSessionStore(context) }
+    var restoredSession by remember { mutableStateOf(sessionStore.load()) }
+    var accessToken by remember { mutableStateOf(restoredSession?.accessToken) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
@@ -216,9 +217,10 @@ private fun AuthGate() {
 
     LaunchedEffect(Unit) {
         if (accessToken != null) {
-            val savedRefreshToken = prefs.getString("refresh_token", null)
+            val savedRefreshToken = restoredSession?.refreshToken
             if (savedRefreshToken.isNullOrBlank()) {
-                prefs.edit().clear().apply()
+                sessionStore.clear()
+                restoredSession = null
                 accessToken = null
             } else {
                 try {
@@ -238,10 +240,9 @@ private fun AuthGate() {
                     val renewedAccess = refreshResult.third?.optString("access_token").orEmpty()
                     val renewedRefresh = refreshResult.third?.optString("refresh_token").orEmpty()
                     if (refreshResult.second && renewedAccess.isNotBlank()) {
-                        prefs.edit()
-                            .putString("access_token", renewedAccess)
-                            .putString("refresh_token", renewedRefresh.ifBlank { savedRefreshToken })
-                            .apply()
+                        val refresh = renewedRefresh.ifBlank { savedRefreshToken }
+                        sessionStore.save(renewedAccess, refresh)
+                        restoredSession = StoredSession(renewedAccess, refresh)
                         accessToken = renewedAccess
                     } else if (refreshResult.first in 400..499) {
                         prefs.edit().clear().apply()
@@ -264,7 +265,8 @@ private fun AuthGate() {
 
     if (accessToken != null) {
         ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
-            prefs.edit().clear().apply()
+            sessionStore.clear()
+            restoredSession = null
             accessToken = null
         })
         return
@@ -370,11 +372,14 @@ private fun AuthGate() {
                                         (context as? ComponentActivity)?.runOnUiThread {
                                             busy = false
                                             if (response.isSuccessful && token.isNotBlank() && refreshToken.isNotBlank()) {
-                                                prefs.edit()
-                                                    .putString("access_token", token)
-                                                    .putString("refresh_token", refreshToken)
-                                                    .apply()
-                                                accessToken = token
+                                                try {
+                                                    sessionStore.save(token, refreshToken)
+                                                    restoredSession = StoredSession(token, refreshToken)
+                                                    accessToken = token
+                                                } catch (_: Exception) {
+                                                    message = "Sesi tidak dapat disimpan dengan aman. Coba lagi."
+                                                    return@runOnUiThread
+                                                }
                                                 password = ""
                                                 confirmPassword = ""
                                                 message = ""
