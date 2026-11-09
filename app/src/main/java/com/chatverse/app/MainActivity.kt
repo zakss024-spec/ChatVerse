@@ -226,6 +226,9 @@ private fun AuthGate() {
     var message by remember { mutableStateOf("") }
     var sessionLoading by remember { mutableStateOf(accessToken != null) }
     var showWelcomeIntro by remember { mutableStateOf(false) }
+    var updateCheckFinished by remember { mutableStateOf(accessToken == null) }
+    var availableUpdate by remember { mutableStateOf<ChatVerseUpdateInfo?>(null) }
+    var updateDismissed by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (accessToken != null) {
@@ -269,6 +272,19 @@ private fun AuthGate() {
         sessionLoading = false
     }
 
+    LaunchedEffect(accessToken) {
+        if (accessToken.isNullOrBlank()) {
+            updateCheckFinished = true
+            availableUpdate = null
+            updateDismissed = false
+        } else {
+            updateCheckFinished = false
+            updateDismissed = false
+            availableUpdate = checkChatVerseUpdate()
+            updateCheckFinished = true
+        }
+    }
+
     if (sessionLoading) {
         Box(Modifier.fillMaxSize().background(Night), contentAlignment = Alignment.Center) {
             androidx.compose.material3.CircularProgressIndicator(color = Mint)
@@ -277,6 +293,29 @@ private fun AuthGate() {
     }
 
     if (accessToken != null) {
+        if (!updateCheckFinished) {
+            Box(Modifier.fillMaxSize().background(Night), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(color = Mint)
+            }
+            return
+        }
+        val pendingUpdate = availableUpdate
+        if (pendingUpdate != null && !updateDismissed) {
+            ChatVerseUpdateDialog(
+                update = pendingUpdate,
+                onUpdateNow = {
+                    if (pendingUpdate.hasVerifiedReleaseUrl) {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(pendingUpdate.downloadUrl)))
+                        }.onFailure {
+                            message = "Tidak dapat membuka halaman rilis. Coba browser secara manual."
+                        }
+                    }
+                },
+                onLater = { if (!pendingUpdate.isMandatory) updateDismissed = true }
+            )
+            return
+        }
         if (showWelcomeIntro) {
             WelcomeIntroScreen(onFinished = { showWelcomeIntro = false })
         } else {
@@ -285,6 +324,8 @@ private fun AuthGate() {
                 restoredSession = null
                 accessToken = null
                 showWelcomeIntro = false
+                availableUpdate = null
+                updateDismissed = false
             })
         }
         return
