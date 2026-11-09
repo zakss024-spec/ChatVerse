@@ -245,7 +245,8 @@ private fun AuthGate() {
                         restoredSession = StoredSession(renewedAccess, refresh)
                         accessToken = renewedAccess
                     } else if (refreshResult.first in 400..499) {
-                        prefs.edit().clear().apply()
+                        sessionStore.clear()
+                        restoredSession = null
                         accessToken = null
                     }
                 } catch (_: Exception) {
