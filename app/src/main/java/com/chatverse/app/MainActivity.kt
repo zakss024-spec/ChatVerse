@@ -2138,6 +2138,7 @@ private fun UpdatesScreen(accessToken:String) {
 private data class CommunityItem(val id: String, val name: String, val description: String)
 private data class CommunityChannelItem(val id: String, val name: String, val type: String)
 private data class CommunityPostItem(val id: String, val content: String, val authorId: String, val createdAt: String)
+private data class CommunityMemberItem(val userId: String, val displayName: String, val role: String)
 
 @Composable
 private fun CommunitiesScreen(accessToken: String) {
@@ -2146,6 +2147,7 @@ private fun CommunitiesScreen(accessToken: String) {
     var roles by remember { mutableStateOf(mapOf<String, String>()) }
     var channels by remember { mutableStateOf(listOf<CommunityChannelItem>()) }
     var posts by remember { mutableStateOf(listOf<CommunityPostItem>()) }
+    var members by remember { mutableStateOf(listOf<CommunityMemberItem>()) }
     var selectedCommunity by remember { mutableStateOf<CommunityItem?>(null) }
     var selectedChannel by remember { mutableStateOf<CommunityChannelItem?>(null) }
     var myUserId by remember { mutableStateOf("") }
@@ -2212,6 +2214,34 @@ private fun CommunitiesScreen(accessToken: String) {
         } else status = "Channel gagal dimuat (${response.first})."
     }
 
+    suspend fun refreshMembers(communityId: String) {
+        val response = supabaseCall("/rest/v1/community_members?community_id=eq.$communityId&select=user_id,role&order=joined_at.asc", accessToken)
+        if (response.first !in 200..299) {
+            status = "Daftar anggota gagal dimuat (${response.first})."
+            return
+        }
+        val rows = org.json.JSONArray(response.second)
+        val ids = (0 until rows.length()).map { rows.getJSONObject(it).optString("user_id") }.filter { it.isNotBlank() }
+        val roleMap = (0 until rows.length()).associate {
+            val row = rows.getJSONObject(it)
+            row.optString("user_id") to row.optString("role", "member")
+        }
+        if (ids.isEmpty()) {
+            members = emptyList()
+            return
+        }
+        val profileResponse = supabaseCall("/rest/v1/profiles?id=in.(" + ids.joinToString(",") + ")&select=id,username,display_name", accessToken)
+        val names = mutableMapOf<String, String>()
+        if (profileResponse.first in 200..299) {
+            val profiles = org.json.JSONArray(profileResponse.second)
+            for (i in 0 until profiles.length()) {
+                val profile = profiles.getJSONObject(i)
+                names[profile.optString("id")] = profile.optString("display_name").ifBlank { profile.optString("username") }
+            }
+        }
+        members = ids.map { id -> CommunityMemberItem(id, names[id].orEmpty().ifBlank { "Anggota " + id.take(8) }, roleMap[id] ?: "member") }
+    }
+
     suspend fun refreshPosts(channelId: String) {
         val response = supabaseCall("/rest/v1/community_posts?channel_id=eq.$channelId&select=id,content,author_id,created_at&deleted_at=is.null&order=created_at.desc&limit=50", accessToken)
         if (response.first in 200..299) {
@@ -2227,12 +2257,13 @@ private fun CommunitiesScreen(accessToken: String) {
     }
 
     LaunchedEffect(accessToken) { refreshCommunities() }
-    LaunchedEffect(selectedCommunity?.id) {
+    LaunchedEffect(selectedCommunity?.id, joinedIds) {
         val current = selectedCommunity
         if (current != null && current.id in joinedIds) {
             selectedChannel = null
             refreshChannels(current.id)
-        }
+            refreshMembers(current.id)
+        } else members = emptyList()
     }
     LaunchedEffect(selectedChannel?.id) {
         val current = selectedChannel
@@ -2250,6 +2281,49 @@ private fun CommunitiesScreen(accessToken: String) {
             }
             Text(current.description.ifBlank { "Komunitas ChatVerse" }, color = Muted, fontSize = 12.sp)
             Text(status, color = Mint, fontSize = 11.sp)
+            if (selectedChannel == null && members.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Anggota • ${members.size}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { scope.launch { refreshMembers(current.id) } }) { Text("Muat ulang", color = Cyan) }
+                }
+                members.take(8).forEach { member ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(member.displayName, color = Color.White, fontSize = 12.sp)
+                            Text(member.role, color = Muted, fontSize = 10.sp)
+                        }
+                        if (roles[current.id] == "owner" && member.userId != myUserId && member.role != "owner") {
+                            TextButton(enabled = !busy, onClick = {
+                                scope.launch {
+                                    busy = true
+                                    try {
+                                        val nextRole = if (member.role == "admin") "member" else "admin"
+                                        val result = supabaseCall("/rest/v1/rpc/set_community_member_role", accessToken, "POST",
+                                            JSONObject().put("p_community_id", current.id).put("p_member_id", member.userId).put("p_role", nextRole))
+                                        if (result.first in 200..299) { refreshMembers(current.id); status = "Role anggota diperbarui." }
+                                        else status = "Gagal mengubah role (${result.first})."
+                                    } finally { busy = false }
+                                }
+                            }) { Text(if (member.role == "admin") "Jadikan anggota" else "Jadikan admin", color = Cyan, fontSize = 10.sp) }
+                        }
+                        if ((roles[current.id] == "owner" || (roles[current.id] == "admin" && member.role == "member")) &&
+                            member.userId != myUserId && member.role != "owner") {
+                            TextButton(enabled = !busy, onClick = {
+                                scope.launch {
+                                    busy = true
+                                    try {
+                                        val result = supabaseCall("/rest/v1/rpc/remove_community_member", accessToken, "POST",
+                                            JSONObject().put("p_community_id", current.id).put("p_member_id", member.userId))
+                                        if (result.first in 200..299) { refreshMembers(current.id); refreshCommunities(); status = "Anggota dikeluarkan." }
+                                        else status = "Gagal mengeluarkan anggota (${result.first})."
+                                    } finally { busy = false }
+                                }
+                            }) { Text("Keluarkan", color = Color(0xFFFF9A9A), fontSize = 10.sp) }
+                        }
+                    }
+                }
+                if (members.size > 8) Text("Menampilkan 8 dari ${members.size} anggota.", color = Muted, fontSize = 10.sp)
+            }
             if (selectedChannel == null) {
                 Text("Channels", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
