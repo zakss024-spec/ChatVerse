@@ -279,8 +279,12 @@ private fun AuthGate() {
             updateDismissed = false
         } else {
             updateCheckFinished = false
-            updateDismissed = false
-            availableUpdate = checkChatVerseUpdate()
+            val update = checkChatVerseUpdate()
+            availableUpdate = update
+            val dismissedVersion = context.getSharedPreferences("chatverse_update_state", Context.MODE_PRIVATE)
+                .getInt("dismissed_version_code", -1)
+            updateDismissed = update != null && !update.isMandatory &&
+                dismissedVersion >= update.versionCode
             updateCheckFinished = true
         }
     }
@@ -312,7 +316,15 @@ private fun AuthGate() {
                         }
                     }
                 },
-                onLater = { if (!pendingUpdate.isMandatory) updateDismissed = true }
+                onLater = {
+                    if (!pendingUpdate.isMandatory) {
+                        context.getSharedPreferences("chatverse_update_state", Context.MODE_PRIVATE)
+                            .edit()
+                            .putInt("dismissed_version_code", pendingUpdate.versionCode)
+                            .apply()
+                        updateDismissed = true
+                    }
+                }
             )
             return
         }
