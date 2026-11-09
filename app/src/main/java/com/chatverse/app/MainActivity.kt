@@ -464,6 +464,7 @@ private fun ChatsHubScreen(accessToken: String) {
         return
     }
 
+    Column(Modifier.fillMaxSize()) {
     Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
     AnimatedActionButton("Open ChatVerse Global", Modifier.fillMaxWidth()) { showGlobal = true }
@@ -569,6 +570,7 @@ private fun ChatsHubScreen(accessToken: String) {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -663,6 +665,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         }
     }
 
+    Column(Modifier.fillMaxSize()) {
     Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
     Text(status, color = Muted, fontSize = 11.sp)
     if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
@@ -843,6 +846,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             }
         }) { Text(if (uploadingMedia) "Upload..." else if (sending) "..." else "Send") }
     }
+    }
 }
 
 private data class GlobalMessage(val id: String, val senderId: String, val content: String, val isRead: Boolean = false, val isDelivered: Boolean = false, val replyToId: String = "", val replyContent: String = "", val replySenderId: String = "", val isDeleted: Boolean = false, val mediaPath: String = "", val mediaMime: String = "")
@@ -866,17 +870,16 @@ private fun GlobalChatScreen(accessToken: String) {
                 return@LaunchedEffect
             }
             myUserId = JSONObject(user.second).optString("id")
-            val room = supabaseCall("/rest/v1/conversations?type=eq.global&title=eq.ChatVerse%20Global&select=id&limit=1", accessToken)
-            if (room.first !in 200..299) {
-                status = "Tidak dapat membuka ruang global (${room.first})."
+            val joined = supabaseCall("/rest/v1/rpc/join_global_conversation", accessToken, "POST", JSONObject())
+            if (joined.first !in 200..299) {
+                status = "Tidak dapat bergabung ke Global Chat (${joined.first})."
                 return@LaunchedEffect
             }
-            val rooms = org.json.JSONArray(room.second)
-            if (rooms.length() == 0) {
-                status = "Ruang Global belum tersedia untuk akun ini."
+            conversationId = joined.second.trim().trim('"')
+            if (conversationId.isBlank()) {
+                status = "Ruang Global belum tersedia."
                 return@LaunchedEffect
             }
-            conversationId = rooms.getJSONObject(0).optString("id")
             status = "ChatVerse Global • pembaruan otomatis"
             while (true) {
                 val result = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content&order=created_at.asc&limit=100", accessToken)
@@ -1236,6 +1239,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         } catch (_: Exception) { status = "Koneksi terputus. Periksa internet." }
     }
 
+    Column(Modifier.fillMaxSize()) {
     val myRole = members.firstOrNull { it.first == myUserId }?.third.orEmpty()
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(groupTitle, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -1597,6 +1601,7 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
         contentAlignment = Alignment.Center
     ) {
         Text(if (sending) "Mengirim…" else "Send", color = Night, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
     }
 }
 
