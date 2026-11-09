@@ -188,6 +188,55 @@ private fun AuthGate() {
     var isRegister by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
+    var sessionLoading by remember { mutableStateOf(accessToken != null) }
+
+    LaunchedEffect(Unit) {
+        if (accessToken != null) {
+            val savedRefreshToken = prefs.getString("refresh_token", null)
+            if (savedRefreshToken.isNullOrBlank()) {
+                prefs.edit().clear().apply()
+                accessToken = null
+            } else {
+                try {
+                    val refreshPayload = JSONObject().put("refresh_token", savedRefreshToken)
+                    val refreshRequest = Request.Builder()
+                        .url(BuildConfig.SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token")
+                        .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                        .addHeader("Content-Type", "application/json")
+                        .post(refreshPayload.toString().toRequestBody(jsonType))
+                        .build()
+                    val refreshResult = withContext(Dispatchers.IO) {
+                        httpClient.newCall(refreshRequest).execute().use { response ->
+                            val body = response.body?.string().orEmpty()
+                            Triple(response.code, response.isSuccessful, runCatching { JSONObject(body) }.getOrNull())
+                        }
+                    }
+                    val renewedAccess = refreshResult.third?.optString("access_token").orEmpty()
+                    val renewedRefresh = refreshResult.third?.optString("refresh_token").orEmpty()
+                    if (refreshResult.second && renewedAccess.isNotBlank()) {
+                        prefs.edit()
+                            .putString("access_token", renewedAccess)
+                            .putString("refresh_token", renewedRefresh.ifBlank { savedRefreshToken })
+                            .apply()
+                        accessToken = renewedAccess
+                    } else if (refreshResult.first in 400..499) {
+                        prefs.edit().clear().apply()
+                        accessToken = null
+                    }
+                } catch (_: Exception) {
+                    // Keep the stored session during temporary network failures.
+                }
+            }
+        }
+        sessionLoading = false
+    }
+
+    if (sessionLoading) {
+        Box(Modifier.fillMaxSize().background(Night), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.CircularProgressIndicator(color = Mint)
+        }
+        return
+    }
 
     if (accessToken != null) {
         ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
@@ -278,7 +327,16 @@ private fun AuthGate() {
                                     (context as? ComponentActivity)?.runOnUiThread {
                                         busy = false
                                         if (response.isSuccessful && token.isNotBlank()) {
-                                            prefs.edit().putString("access_token", token).putString("email", email.trim()).apply()
+                                            val refreshToken = result?.optString("refresh_token").orEmpty()
+                                            if (refreshToken.isBlank()) {
+                                                message = "Sesi tidak dapat disimpan. Coba masuk kembali."
+                                                return@runOnUiThread
+                                            }
+                                            prefs.edit()
+                                                .putString("access_token", token)
+                                                .putString("refresh_token", refreshToken)
+                                                .putString("email", email.trim())
+                                                .apply()
                                             accessToken = token
                                             message = ""
                                         } else if (response.isSuccessful && isRegister) {
