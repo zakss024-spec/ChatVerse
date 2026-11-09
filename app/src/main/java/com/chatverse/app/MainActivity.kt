@@ -133,6 +133,22 @@ private suspend fun uploadChatMedia(context: Context, accessToken: String, conve
         UploadedChatMedia(path, mime, bytes.size.toLong(), safeName)
     }
 
+private suspend fun deleteUploadedChatMedia(accessToken: String, path: String): Boolean =
+    withContext(Dispatchers.IO) {
+        val encodedPath = path.split("/").joinToString("/") {
+            java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20")
+        }
+        val request = Request.Builder()
+            .url(BuildConfig.SUPABASE_URL + "/storage/v1/object/chat-media/" + encodedPath)
+            .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .delete()
+            .build()
+        runCatching {
+            httpClient.newCall(request).execute().use { it.isSuccessful }
+        }.getOrDefault(false)
+    }
+
 private suspend fun openChatMedia(context: Context, accessToken: String, path: String): Boolean =
     withContext(Dispatchers.IO) {
         val encodedPath = path.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
@@ -669,7 +685,16 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                             .put("message_type", type).put("content", uploaded.name).put("media_path", uploaded.path)
                             .put("media_mime_type", uploaded.mimeType).put("media_size_bytes", uploaded.size)
                         val sent = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
-                        status = if (sent.first in 200..299) "Lampiran berhasil dikirim." else "File terunggah, tetapi pesan gagal dikirim (" + sent.first + ")."
+                        if (sent.first in 200..299) {
+                            status = "Lampiran berhasil dikirim."
+                        } else {
+                            val cleaned = deleteUploadedChatMedia(accessToken, uploaded.path)
+                            status = if (cleaned) {
+                                "Pesan gagal dikirim (" + sent.first + "). File sementara sudah dibersihkan."
+                            } else {
+                                "Pesan gagal dikirim (" + sent.first + "). File sementara perlu dibersihkan."
+                            }
+                        }
                     }
                 } catch (_: Exception) { status = "Gagal mengirim lampiran. Periksa koneksi." }
                 finally { uploadingMedia = false }
