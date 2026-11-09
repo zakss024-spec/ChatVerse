@@ -687,7 +687,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
                 peerTyping = typingResponse.first in 200..299 && org.json.JSONArray(typingResponse.second).length() > 0
-                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,deleted_at,media_path,media_mime_type,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.asc&limit=100", accessToken)
+                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,deleted_at,media_path,media_mime_type,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.desc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
                     val loaded = mutableListOf<GlobalMessage>()
@@ -731,7 +731,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     Text(status, color = Muted, fontSize = 11.sp)
     if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(8.dp))
-    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).fillMaxWidth(), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
             AnimatedVisibility(
@@ -981,6 +981,7 @@ private fun GlobalChatScreen(accessToken: String) {
     }
     LazyColumn(
         modifier = Modifier.fillMaxWidth().height(430.dp),
+        reverseLayout = true,
         contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
@@ -1284,7 +1285,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                     }
                     members = loadedMembers
                 }
-                val result = supabaseCall("/rest/v1/messages?conversation_id=eq." + conversationId + "&select=id,sender_id,content,deleted_at&order=created_at.asc&limit=150", accessToken)
+                val result = supabaseCall("/rest/v1/messages?conversation_id=eq." + conversationId + "&select=id,sender_id,content,deleted_at&order=created_at.desc&limit=150", accessToken)
                 if (result.first in 200..299) {
                     val rows = org.json.JSONArray(result.second)
                     val loaded = mutableListOf<GlobalMessage>()
@@ -1571,7 +1572,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         )
     }
     Spacer(Modifier.height(8.dp))
-    LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp),
+    LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(messages, key = { it.id }) { message ->
             val mine = message.senderId == myUserId
