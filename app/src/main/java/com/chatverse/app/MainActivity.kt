@@ -28,11 +28,17 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -91,6 +97,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -214,6 +222,7 @@ private fun AuthGate() {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var sessionLoading by remember { mutableStateOf(accessToken != null) }
+    var showWelcomeIntro by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (accessToken != null) {
@@ -265,11 +274,16 @@ private fun AuthGate() {
     }
 
     if (accessToken != null) {
-        ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
-            sessionStore.clear()
-            restoredSession = null
-            accessToken = null
-        })
+        if (showWelcomeIntro) {
+            WelcomeIntroScreen(onFinished = { showWelcomeIntro = false })
+        } else {
+            ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
+                sessionStore.clear()
+                restoredSession = null
+                accessToken = null
+                showWelcomeIntro = false
+            })
+        }
         return
     }
 
@@ -377,6 +391,7 @@ private fun AuthGate() {
                                                     sessionStore.save(token, refreshToken)
                                                     restoredSession = StoredSession(token, refreshToken)
                                                     accessToken = token
+                                                    showWelcomeIntro = true
                                                 } catch (_: Exception) {
                                                     message = "Sesi tidak dapat disimpan dengan aman. Coba lagi."
                                                     return@runOnUiThread
@@ -1775,6 +1790,80 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
         contentAlignment = Alignment.Center
     ) {
         Text(if (sending) "Mengirim…" else "Send", color = Night, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun WelcomeIntroScreen(onFinished: () -> Unit) {
+    var showText by remember { mutableStateOf(false) }
+    val rain = rememberInfiniteTransition(label = "matrixRain")
+    val phase by rain.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2800, easing = LinearEasing)
+        ),
+        label = "matrixRainPhase"
+    )
+    val columns = remember { List(24) { kotlin.random.Random.nextInt(0, 1800) } }
+
+    LaunchedEffect(Unit) {
+        delay(550)
+        showText = true
+        delay(2850)
+        onFinished()
+    }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawIntoCanvas { canvas ->
+                val native = canvas.nativeCanvas
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    textSize = 27f
+                }
+                val glyphs = "01アイウエオカキクケコサシスセソタチツテトナニヌネノ"
+                val columnWidth = size.width / columns.size
+                val cellHeight = 31f
+                columns.forEachIndexed { index, seed ->
+                    val speed = 0.62f + (index % 6) * 0.13f
+                    val offset = (phase * (size.height + 500f) * speed + seed) % (size.height + 500f)
+                    for (row in 0..13) {
+                        val y = offset - row * cellHeight
+                        if (y >= 0f && y <= size.height + cellHeight) {
+                            val glyphIndex = (seed + row * 13 + index * 7) % glyphs.length
+                            val alpha = if (row == 0) 230 else (65 + (13 - row) * 9).coerceIn(65, 180)
+                            paint.color = android.graphics.Color.argb(alpha, 55, 255, 150)
+                            native.drawText(glyphs[glyphIndex].toString(), index * columnWidth, y, paint)
+                        }
+                    }
+                }
+            }
+        }
+        AnimatedVisibility(
+            visible = showText,
+            enter = fadeIn(tween(650)),
+            exit = fadeOut(tween(350)),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Welcome to ChatVerse",
+                    color = Color.White,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.4).sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Developer:Zakss",
+                    color = Mint,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.1.sp
+                )
+            }
+        }
     }
 }
 
