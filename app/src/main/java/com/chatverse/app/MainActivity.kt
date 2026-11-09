@@ -1979,6 +1979,33 @@ private fun UpdatesScreen(accessToken:String) {
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    suspend fun reload() {
+        try {
+            val u=supabaseCall("/auth/v1/user",accessToken)
+            if(u.first !in 200..299){status="Sesi perlu diperbarui.";return}
+            myId=JSONObject(u.second).optString("id")
+            val now=java.time.Instant.now().toString()
+            val r=supabaseCall("/rest/v1/stories?expires_at=gt.${URLEncoder.encode(now,"UTF-8")}&select=id,user_id,story_type,text_content,caption,audience,media_path,expires_at&order=created_at.desc&limit=100",accessToken)
+            if(r.first !in 200..299){status="Stories gagal dimuat (${r.first}).";return}
+            val a=org.json.JSONArray(r.second)
+            stories=(0 until a.length()).map { i -> val x=a.getJSONObject(i); StoryItem(x.optString("id"),x.optString("user_id"),x.optString("story_type"),x.optString("text_content"),x.optString("caption"),x.optString("audience"),x.optString("media_path"),x.optString("expires_at")) }
+            val cf=supabaseCall("/rest/v1/story_close_friends?owner_id=eq.$myId&select=friend_id",accessToken)
+            if(cf.first in 200..299){
+                val ar=org.json.JSONArray(cf.second)
+                val ids=(0 until ar.length()).map{ar.getJSONObject(it).optString("friend_id")}.filter{it.isNotBlank()}
+                if(ids.isEmpty()) closeFriends=emptyList() else {
+                    val profileRows=supabaseCall("/rest/v1/profiles?id=in.(${ids.joinToString(",")})&select=id,username,display_name",accessToken)
+                    if(profileRows.first in 200..299){
+                        val pr=org.json.JSONArray(profileRows.second)
+                        val names=(0 until pr.length()).associate{val x=pr.getJSONObject(it);x.optString("id") to x.optString("display_name").ifBlank{x.optString("username")}}
+                        closeFriends=ids.map{it to names[it].orEmpty()}
+                    }
+                }
+            }
+            status=if(stories.isEmpty())"Belum ada Story aktif." else "Story aktif • kedaluwarsa otomatis 24 jam"
+        }catch(_:Exception){status="Koneksi bermasalah."}
+    }
+
     val uploadStoryMedia: (Uri, String) -> Unit = { uri, type ->
         scope.launch {
             busy = true
@@ -2033,32 +2060,6 @@ private fun UpdatesScreen(accessToken:String) {
         if (uri != null) uploadStoryMedia(uri,"video")
     }
 
-    suspend fun reload() {
-        try {
-            val u=supabaseCall("/auth/v1/user",accessToken)
-            if(u.first !in 200..299){status="Sesi perlu diperbarui.";return}
-            myId=JSONObject(u.second).optString("id")
-            val now=java.time.Instant.now().toString()
-            val r=supabaseCall("/rest/v1/stories?expires_at=gt.${URLEncoder.encode(now,"UTF-8")}&select=id,user_id,story_type,text_content,caption,audience,media_path,expires_at&order=created_at.desc&limit=100",accessToken)
-            if(r.first !in 200..299){status="Stories gagal dimuat (${r.first}).";return}
-            val a=org.json.JSONArray(r.second)
-            stories=(0 until a.length()).map { i -> val x=a.getJSONObject(i); StoryItem(x.optString("id"),x.optString("user_id"),x.optString("story_type"),x.optString("text_content"),x.optString("caption"),x.optString("audience"),x.optString("media_path"),x.optString("expires_at")) }
-            val cf=supabaseCall("/rest/v1/story_close_friends?owner_id=eq.$myId&select=friend_id",accessToken)
-            if(cf.first in 200..299){
-                val ar=org.json.JSONArray(cf.second)
-                val ids=(0 until ar.length()).map{ar.getJSONObject(it).optString("friend_id")}.filter{it.isNotBlank()}
-                if(ids.isEmpty()) closeFriends=emptyList() else {
-                    val profileRows=supabaseCall("/rest/v1/profiles?id=in.(${ids.joinToString(",")})&select=id,username,display_name",accessToken)
-                    if(profileRows.first in 200..299){
-                        val pr=org.json.JSONArray(profileRows.second)
-                        val names=(0 until pr.length()).associate{val x=pr.getJSONObject(it);x.optString("id") to x.optString("display_name").ifBlank{x.optString("username")}}
-                        closeFriends=ids.map{it to names[it].orEmpty()}
-                    }
-                }
-            }
-            status=if(stories.isEmpty())"Belum ada Story aktif." else "Story aktif • kedaluwarsa otomatis 24 jam"
-        }catch(_:Exception){status="Koneksi bermasalah."}
-    }
     LaunchedEffect(accessToken){reload()}
     LaunchedEffect(selected?.id) {
         val story=selected?:return@LaunchedEffect
