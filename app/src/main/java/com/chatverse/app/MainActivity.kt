@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -387,7 +388,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                AuthGate()
+                Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                    AuthGate()
+                }
             }
         }
     }
@@ -1301,7 +1304,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     val myRole = members.firstOrNull { it.first == myUserId }?.third.orEmpty()
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(groupTitle, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        if (myRole == "admin") {
+        if (myRole == "admin" || myRole == "owner") {
             TextButton(onClick = { renameDraft = groupTitle; showRenameDialog = true }) { Text("Ubah nama", color = Mint, fontSize = 11.sp) }
         }
     }
@@ -1337,12 +1340,12 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                         Text(member.second, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         Text(when (member.third) { "owner" -> "OWNER"; "admin" -> "ADMIN"; else -> "MEMBER" },
                             color = if (member.third == "owner" || member.third == "admin") Mint else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        if (myRole == "admin" && member.first != myUserId && member.first != groupCreatorId) {
+                        if ((myRole == "admin" || myRole == "owner") && member.first != myUserId && member.first != groupCreatorId) {
                             TextButton(onClick = { pendingRoleChange = member }) {
                                 Text(if (member.third == "admin") "Jadikan member" else "Jadikan admin", color = Cyan, fontSize = 9.sp)
                             }
                         }
-                        if (myRole == "admin" && member.third == "member") {
+                        if ((myRole == "admin" || myRole == "owner") && member.third == "member") {
                             TextButton(onClick = { pendingRemoval = member }) { Text("Keluarkan", color = Color(0xFFFF9A9A), fontSize = 10.sp) }
                         }
                     }
