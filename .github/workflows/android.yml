@@ -29,13 +29,36 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;google_apis;x86_64"
 
       - name: Run unit tests and Android lint
         run: gradle :app:testDebugUnitTest :app:lintDebug
 
       - name: Build debug APK
         run: gradle :app:assembleDebug
+
+      - name: Android emulator install and launch smoke test
+        run: |
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n chatverse-smoke -k "system-images;android-35;google_apis;x86_64" --device "pixel_2"
+          "$ANDROID_HOME/emulator/emulator" -avd chatverse-smoke -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &
+          adb wait-for-device
+          boot_completed=""
+          for attempt in $(seq 1 60); do
+            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+            if [ "$boot_completed" = "1" ]; then break; fi
+            sleep 5
+          done
+          if [ "$boot_completed" != "1" ]; then
+            adb logcat -d
+            exit 1
+          fi
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb shell am start -n com.chatverse.app/.MainActivity
+          sleep 15
+          if [ -z "$(adb shell pidof com.chatverse.app)" ]; then
+            adb logcat -d
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
