@@ -943,7 +943,7 @@ private fun GlobalChatScreen(accessToken: String) {
             }
             status = "ChatVerse Global • pembaruan otomatis"
             while (true) {
-                val result = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content&order=created_at.asc&limit=100", accessToken)
+                val result = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content&order=created_at.desc&limit=100", accessToken)
                 if (result.first in 200..299) {
                     val rows = org.json.JSONArray(result.second)
                     val loaded = mutableListOf<GlobalMessage>()
