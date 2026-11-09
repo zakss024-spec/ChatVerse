@@ -95,6 +95,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -205,8 +206,8 @@ private fun AuthGate() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("chatverse_session", android.content.Context.MODE_PRIVATE) }
     var accessToken by remember { mutableStateOf(prefs.getString("access_token", null)) }
-    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var isRegister by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
@@ -294,27 +295,37 @@ private fun AuthGate() {
                     color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 Text(if (isRegister) "Buat akun dan mulai terhubung." else "Your conversations, all in one place.",
                     color = Muted, fontSize = 13.sp)
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { value -> username = value.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '_' || ch == '.' }.take(30) },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
+                        focusedLabelColor = Mint, unfocusedLabelColor = Muted, cursorColor = Mint
+                    )
+                )
+                OutlinedTextField(
+                    value = password, onValueChange = { password = it.take(128) }, label = { Text("Password") },
+                    singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
+                        focusedLabelColor = Mint, unfocusedLabelColor = Muted, cursorColor = Mint
+                    )
+                )
                 if (isRegister) OutlinedTextField(
-                    value = username, onValueChange = { value -> username = value.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '_' || ch == '.' }.take(30) }, label = { Text("Username") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                        focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
-                        focusedLabelColor = Mint, unfocusedLabelColor = Muted, cursorColor = Mint
-                    )
-                )
-                OutlinedTextField(
-                    value = email, onValueChange = { email = it }, label = { Text("Email address") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                        focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
-                        focusedLabelColor = Mint, unfocusedLabelColor = Muted, cursorColor = Mint
-                    )
-                )
-                OutlinedTextField(
-                    value = password, onValueChange = { password = it }, label = { Text("Password") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it.take(128) },
+                    label = { Text("Konfirmasi password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White, unfocusedTextColor = Color.White,
                         focusedBorderColor = Mint, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
@@ -324,56 +335,57 @@ private fun AuthGate() {
                 if (message.isNotBlank()) Text(message, color = Color(0xFFFFB4AB), fontSize = 12.sp)
                 Button(
                     onClick = {
-                        if (email.isBlank() || password.length < 6 || (isRegister && username.isBlank())) {
-                            message = "Isi semua data. Password minimal 6 karakter."
-                        } else {
-                            busy = true
-                            message = "Menghubungkan ke ChatVerse..."
-                            val payload = JSONObject().put("email", email.trim()).put("password", password)
-                            if (isRegister) payload.put("data", JSONObject().put("username", username.trim()).put("display_name", username.trim()))
-                            val endpoint = if (isRegister) "signup" else "token?grant_type=password"
-                            val request = Request.Builder().url(BuildConfig.SUPABASE_URL + "/auth/v1/" + endpoint)
-                                .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-                                .addHeader("Content-Type", "application/json")
-                                .post(payload.toString().toRequestBody(jsonType)).build()
-                            httpClient.newCall(request).enqueue(object : Callback {
-                                override fun onFailure(call: Call, e: IOException) {
-                                    (context as? ComponentActivity)?.runOnUiThread {
-                                        busy = false
-                                        message = "Koneksi gagal: periksa internet lalu coba lagi."
-                                    }
-                                }
-                                override fun onResponse(call: Call, response: Response) {
-                                    val body = response.body?.string().orEmpty()
-                                    val result = runCatching { JSONObject(body) }.getOrNull()
-                                    val token = result?.optString("access_token").orEmpty()
-                                    (context as? ComponentActivity)?.runOnUiThread {
-                                        busy = false
-                                        if (response.isSuccessful && token.isNotBlank()) {
-                                            val refreshToken = result?.optString("refresh_token").orEmpty()
-                                            if (refreshToken.isBlank()) {
-                                                message = "Sesi tidak dapat disimpan. Coba masuk kembali."
-                                                return@runOnUiThread
-                                            }
-                                            prefs.edit()
-                                                .putString("access_token", token)
-                                                .putString("refresh_token", refreshToken)
-                                                .putString("email", email.trim())
-                                                .apply()
-                                            accessToken = token
-                                            message = ""
-                                        } else if (response.isSuccessful && isRegister) {
-                                            message = "Akun dibuat. Cek email untuk konfirmasi, lalu masuk."
-                                            isRegister = false
-                                        } else {
-                                            message = result?.optString("msg")?.takeIf { it.isNotBlank() }
-                                                ?: result?.optString("message")?.takeIf { it.isNotBlank() }
-                                                ?: result?.optString("error_description")?.takeIf { it.isNotBlank() }
-                                                ?: "Gagal masuk. Periksa email dan password."
+                        when {
+                            !username.trim().matches(Regex("[a-z0-9_.]{3,30}")) ->
+                                message = "Username harus 3–30 karakter: huruf kecil, angka, titik, atau garis bawah."
+                            password.length < 8 || password.length > 128 ->
+                                message = "Password harus 8–128 karakter."
+                            isRegister && confirmPassword != password ->
+                                message = "Konfirmasi password belum cocok."
+                            else -> {
+                                busy = true
+                                message = "Menghubungkan ke ChatVerse..."
+                                val payload = JSONObject()
+                                    .put("action", if (isRegister) "register" else "login")
+                                    .put("username", username.trim())
+                                    .put("password", password)
+                                val request = Request.Builder()
+                                    .url(BuildConfig.SUPABASE_URL + "/functions/v1/username-auth")
+                                    .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                                    .addHeader("Content-Type", "application/json")
+                                    .post(payload.toString().toRequestBody(jsonType))
+                                    .build()
+                                httpClient.newCall(request).enqueue(object : Callback {
+                                    override fun onFailure(call: Call, e: IOException) {
+                                        (context as? ComponentActivity)?.runOnUiThread {
+                                            busy = false
+                                            message = "Koneksi gagal. Periksa internet lalu coba lagi."
                                         }
                                     }
-                                }
-                            })
+                                    override fun onResponse(call: Call, response: Response) {
+                                        val body = response.body?.string().orEmpty()
+                                        val result = runCatching { JSONObject(body) }.getOrNull()
+                                        val token = result?.optString("access_token").orEmpty()
+                                        val refreshToken = result?.optString("refresh_token").orEmpty()
+                                        (context as? ComponentActivity)?.runOnUiThread {
+                                            busy = false
+                                            if (response.isSuccessful && token.isNotBlank() && refreshToken.isNotBlank()) {
+                                                prefs.edit()
+                                                    .putString("access_token", token)
+                                                    .putString("refresh_token", refreshToken)
+                                                    .apply()
+                                                accessToken = token
+                                                password = ""
+                                                confirmPassword = ""
+                                                message = ""
+                                            } else {
+                                                message = result?.optString("error")?.takeIf { it.isNotBlank() }
+                                                    ?: "Autentikasi gagal. Periksa username dan password."
+                                            }
+                                        }
+                                    }
+                                })
+                            }
                         }
                     },
                     enabled = !busy,
@@ -388,7 +400,7 @@ private fun AuthGate() {
                     Text(if (busy) "Connecting..." else if (isRegister) "Create account" else "Sign in",
                         fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
-                TextButton(onClick = { isRegister = !isRegister; message = "" },
+                TextButton(onClick = { isRegister = !isRegister; message = ""; confirmPassword = "" },
                     modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Text(if (isRegister) "Already have an account? Sign in" else "New to ChatVerse? Create account",
                         color = Cyan, fontSize = 13.sp)
