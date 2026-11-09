@@ -56,8 +56,9 @@ jobs:
           arch: x86_64
           profile: pixel_2
           emulator-boot-timeout: 900
-          ram-size: 2048M
-          heap-size: 512M
+          ram-size: 4096M
+          heap-size: 1024M
+          cores: 2
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           disable-animations: true
           script: |
