@@ -1980,20 +1980,267 @@ private fun UpdatesScreen() {
     }
 }
 
+private data class CommunityItem(val id: String, val name: String, val description: String)
+private data class CommunityChannelItem(val id: String, val name: String, val type: String)
+private data class CommunityPostItem(val id: String, val content: String, val authorId: String, val createdAt: String)
+
 @Composable
 private fun CommunitiesScreen(accessToken: String) {
-    Column(Modifier.fillMaxSize()) {
-        Text("Communities", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-        Text("Grup percakapan yang sudah tersedia", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(8.dp))
-        FeatureCard(
-            "Community channels belum tersedia",
-            "Saat ini halaman ini menampilkan grup percakapan ChatVerse yang sudah terhubung ke backend. Komunitas, announcement channel, dan penemuan komunitas belum dibuat."
-        )
-        Spacer(Modifier.height(10.dp))
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            GroupsScreen(accessToken)
+    var communities by remember { mutableStateOf(listOf<CommunityItem>()) }
+    var joinedIds by remember { mutableStateOf(setOf<String>()) }
+    var roles by remember { mutableStateOf(mapOf<String, String>()) }
+    var channels by remember { mutableStateOf(listOf<CommunityChannelItem>()) }
+    var posts by remember { mutableStateOf(listOf<CommunityPostItem>()) }
+    var selectedCommunity by remember { mutableStateOf<CommunityItem?>(null) }
+    var selectedChannel by remember { mutableStateOf<CommunityChannelItem?>(null) }
+    var myUserId by remember { mutableStateOf("") }
+    var communityName by remember { mutableStateOf("") }
+    var communityDescription by remember { mutableStateOf("") }
+    var channelName by remember { mutableStateOf("") }
+    var channelType by remember { mutableStateOf("general") }
+    var draft by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Memuat komunitas...") }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun refreshCommunities() {
+        try {
+            val userResponse = supabaseCall("/auth/v1/user", accessToken)
+            if (userResponse.first !in 200..299) {
+                status = "Sesi perlu diperbarui."
+                return
+            }
+            myUserId = JSONObject(userResponse.second).optString("id")
+            val communityResponse = supabaseCall("/rest/v1/communities?select=id,name,description&order=created_at.desc", accessToken)
+            if (communityResponse.first !in 200..299) {
+                status = "Komunitas belum dapat dimuat (${communityResponse.first})."
+                return
+            }
+            val rows = org.json.JSONArray(communityResponse.second)
+            val loaded = mutableListOf<CommunityItem>()
+            for (i in 0 until rows.length()) {
+                val row = rows.getJSONObject(i)
+                loaded.add(CommunityItem(row.optString("id"), row.optString("name"), row.optString("description")))
+            }
+            communities = loaded
+            val membershipResponse = supabaseCall("/rest/v1/community_members?user_id=eq.$myUserId&select=community_id,role", accessToken)
+            if (membershipResponse.first in 200..299) {
+                val memberships = org.json.JSONArray(membershipResponse.second)
+                val ids = mutableSetOf<String>()
+                val loadedRoles = mutableMapOf<String, String>()
+                for (i in 0 until memberships.length()) {
+                    val row = memberships.getJSONObject(i)
+                    val id = row.optString("community_id")
+                    ids.add(id)
+                    loadedRoles[id] = row.optString("role", "member")
+                }
+                joinedIds = ids
+                roles = loadedRoles
+            }
+            status = if (loaded.isEmpty()) "Belum ada komunitas publik. Buat komunitas pertama!" else "Temukan komunitas dan bergabung."
+        } catch (_: Exception) {
+            status = "Koneksi bermasalah. Coba muat ulang."
         }
+    }
+
+    suspend fun refreshChannels(communityId: String) {
+        val response = supabaseCall("/rest/v1/community_channels?community_id=eq.$communityId&select=id,name,channel_type&order=created_at.asc", accessToken)
+        if (response.first in 200..299) {
+            val rows = org.json.JSONArray(response.second)
+            val loaded = mutableListOf<CommunityChannelItem>()
+            for (i in 0 until rows.length()) {
+                val row = rows.getJSONObject(i)
+                loaded.add(CommunityChannelItem(row.optString("id"), row.optString("name"), row.optString("channel_type", "general")))
+            }
+            channels = loaded
+            if (selectedChannel != null && loaded.none { it.id == selectedChannel?.id }) selectedChannel = null
+        } else status = "Channel gagal dimuat (${response.first})."
+    }
+
+    suspend fun refreshPosts(channelId: String) {
+        val response = supabaseCall("/rest/v1/community_posts?channel_id=eq.$channelId&select=id,content,author_id,created_at&deleted_at=is.null&order=created_at.desc&limit=50", accessToken)
+        if (response.first in 200..299) {
+            val rows = org.json.JSONArray(response.second)
+            val loaded = mutableListOf<CommunityPostItem>()
+            for (i in 0 until rows.length()) {
+                val row = rows.getJSONObject(i)
+                loaded.add(CommunityPostItem(row.optString("id"), row.optString("content"), row.optString("author_id"), row.optString("created_at")))
+            }
+            posts = loaded
+            status = "Channel tersinkron"
+        } else status = "Posting belum dapat dimuat (${response.first})."
+    }
+
+    LaunchedEffect(accessToken) { refreshCommunities() }
+    LaunchedEffect(selectedCommunity?.id) {
+        val current = selectedCommunity
+        if (current != null && current.id in joinedIds) {
+            selectedChannel = null
+            refreshChannels(current.id)
+        }
+    }
+    LaunchedEffect(selectedChannel?.id) {
+        val current = selectedChannel
+        if (current != null) refreshPosts(current.id)
+    }
+
+    if (selectedCommunity != null) {
+        val current = selectedCommunity!!
+        Column(Modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { selectedCommunity = null; selectedChannel = null; channels = emptyList(); posts = emptyList() }) {
+                    Text("← Komunitas", color = Mint)
+                }
+                Text(current.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, modifier = Modifier.weight(1f))
+            }
+            Text(current.description.ifBlank { "Komunitas ChatVerse" }, color = Muted, fontSize = 12.sp)
+            Text(status, color = Mint, fontSize = 11.sp)
+            if (selectedChannel == null) {
+                Text("Channels", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(channels, key = { it.id }) { channel ->
+                        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { selectedChannel = channel }) {
+                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Public, contentDescription = null, tint = Mint)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("# ${channel.name}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    Text(if (channel.type == "announcement") "Pengumuman • admin only" else "Diskusi komunitas", color = Muted, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (roles[current.id] == "owner" || roles[current.id] == "admin") {
+                    OutlinedTextField(value = channelName, onValueChange = { channelName = it.take(40) },
+                        label = { Text("Nama channel baru") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { channelType = if (channelType == "general") "announcement" else "general" }) {
+                            Text(if (channelType == "general") "Tipe: Diskusi" else "Tipe: Pengumuman", color = Cyan)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Button(enabled = channelName.trim().length >= 2 && !busy, onClick = {
+                            scope.launch {
+                                busy = true
+                                try {
+                                    val payload = JSONObject().put("p_community_id", current.id).put("p_name", channelName.trim())
+                                        .put("p_description", "").put("p_type", channelType)
+                                    val result = supabaseCall("/rest/v1/rpc/create_community_channel", accessToken, "POST", payload)
+                                    if (result.first in 200..299) { channelName = ""; refreshChannels(current.id); status = "Channel dibuat." }
+                                    else status = "Gagal membuat channel (${result.first})."
+                                } finally { busy = false }
+                            }
+                        }) { Text("Tambah channel") }
+                    }
+                }
+                TextButton(enabled = !busy, onClick = {
+                    scope.launch {
+                        busy = true
+                        try {
+                            val result = supabaseCall("/rest/v1/rpc/leave_community", accessToken, "POST", JSONObject().put("p_community_id", current.id))
+                            if (result.first in 200..299) {
+                                selectedCommunity = null
+                                selectedChannel = null
+                                refreshCommunities()
+                                status = "Kamu sudah keluar dari komunitas."
+                            } else status = "Tidak dapat keluar (${result.first})."
+                        } finally { busy = false }
+                    }
+                }) { Text("Keluar komunitas", color = Color(0xFFFF9A9A)) }
+            } else {
+                val channel = selectedChannel!!
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { selectedChannel = null; posts = emptyList() }) { Text("← Channels", color = Mint) }
+                    Text("# ${channel.name}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
+                LazyColumn(Modifier.weight(1f), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(posts, key = { it.id }) { post ->
+                        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(if (post.authorId == myUserId) "Kamu" else "Anggota komunitas", color = Mint, fontSize = 10.sp)
+                                Text(post.content, color = Color.White, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                }
+                OutlinedTextField(value = draft, onValueChange = { draft = it.take(4000) },
+                    label = { Text("Tulis pesan komunitas") }, modifier = Modifier.fillMaxWidth(), minLines = 1, maxLines = 4)
+                Button(enabled = draft.trim().isNotEmpty() && !busy && (channel.type != "announcement" || roles[current.id] in listOf("owner","admin")),
+                    modifier = Modifier.fillMaxWidth(), onClick = {
+                        scope.launch {
+                            busy = true
+                            try {
+                                val payload = JSONObject().put("channel_id", channel.id).put("author_id", myUserId).put("content", draft.trim())
+                                val result = supabaseCall("/rest/v1/community_posts", accessToken, "POST", payload)
+                                if (result.first in 200..299) { draft = ""; refreshPosts(channel.id) }
+                                else status = "Pesan tidak terkirim (${result.first})."
+                            } finally { busy = false }
+                        }
+                    }) { Text(if (busy) "Mengirim..." else "Kirim") }
+            }
+        }
+        return
+    }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Communities", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+                Text("Komunitas, channel, dan pengumuman", color = Muted, fontSize = 12.sp)
+            }
+            TextButton(onClick = { scope.launch { refreshCommunities() } }) { Text("Refresh", color = Mint) }
+        }
+        Text(status, color = Mint, fontSize = 11.sp)
+        if (communities.isEmpty()) {
+            FeatureCard("Belum ada komunitas", "Buat komunitas pertama atau coba lagi setelah komunitas tersedia.")
+        }
+        communities.forEach { community ->
+            val joined = community.id in joinedIds
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(community.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(community.description.ifBlank { "Komunitas ChatVerse" }, color = Muted, fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (joined) "Anggota • ${roles[community.id] ?: "member"}" else "Komunitas publik", color = Mint, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                        if (joined) {
+                            TextButton(onClick = { selectedCommunity = community }) { Text("Buka", color = Cyan) }
+                        } else {
+                            TextButton(enabled = !busy, onClick = {
+                                scope.launch {
+                                    busy = true
+                                    try {
+                                        val result = supabaseCall("/rest/v1/rpc/join_community", accessToken, "POST", JSONObject().put("p_community_id", community.id))
+                                        if (result.first in 200..299) { refreshCommunities(); status = "Berhasil bergabung." }
+                                        else status = "Tidak dapat bergabung (${result.first})."
+                                    } finally { busy = false }
+                                }
+                            }) { Text("Gabung", color = Mint) }
+                        }
+                    }
+                }
+            }
+        }
+        Divider(color = Color(0xFF294044))
+        Text("Buat komunitas", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        OutlinedTextField(value = communityName, onValueChange = { communityName = it.take(60) }, label = { Text("Nama komunitas (3–60)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = communityDescription, onValueChange = { communityDescription = it.take(500) }, label = { Text("Deskripsi (opsional)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+        Button(enabled = communityName.trim().length in 3..60 && !busy, modifier = Modifier.fillMaxWidth(), onClick = {
+            scope.launch {
+                busy = true
+                try {
+                    val result = supabaseCall("/rest/v1/rpc/create_community", accessToken, "POST",
+                        JSONObject().put("p_name", communityName.trim()).put("p_description", communityDescription.trim()))
+                    if (result.first in 200..299) {
+                        communityName = ""
+                        communityDescription = ""
+                        refreshCommunities()
+                        status = "Komunitas berhasil dibuat."
+                    } else status = "Gagal membuat komunitas (${result.first})."
+                } finally { busy = false }
+            }
+        }) { Text(if (busy) "Memproses..." else "Buat komunitas") }
     }
 }
 
