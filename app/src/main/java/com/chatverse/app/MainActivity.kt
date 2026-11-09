@@ -1614,6 +1614,9 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     }
 }
 
+    }
+}
+
 @Composable
 private fun AnimatedActionButton(
     label: String,
@@ -1660,8 +1663,6 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
     ) {
         Text(if (sending) "Mengirim…" else "Send", color = Night, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
-    }
-}
 
 @Composable
 private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
