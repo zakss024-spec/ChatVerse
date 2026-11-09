@@ -2222,7 +2222,7 @@ private fun CommunitiesScreen(accessToken: String) {
                 }
             }
         }
-        Divider(color = Color(0xFF294044))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF294044)))
         Text("Buat komunitas", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         OutlinedTextField(value = communityName, onValueChange = { communityName = it.take(60) }, label = { Text("Nama komunitas (3–60)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = communityDescription, onValueChange = { communityDescription = it.take(500) }, label = { Text("Deskripsi (opsional)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
