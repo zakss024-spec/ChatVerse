@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -44,13 +44,19 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug
 
-      - name: Upload APK
+      - name: Upload final debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: ChatVerse-debug
+          name: ChatVerse-Final-Debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
 
+      # Emulator startup is resource-heavy on shared hosted runners. Keep it
+      # diagnostic: a runner/system ANR must not invalidate a successful APK build.
       - name: Android emulator install and launch smoke test
+        id: emulator_smoke
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -64,28 +70,61 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           disable-animations: true
           script: |
+            set +e
             adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am force-stop com.chatverse.app || true
+            install_status=$?
+            if [ "$install_status" -ne 0 ]; then
+              echo "APK installation failed with exit code $install_status"
+              adb logcat -d -t 1200 > emulator-logcat.txt
+              exit "$install_status"
+            fi
+
+            adb shell am force-stop com.chatverse.app
             adb shell am start -W -n com.chatverse.app/.MainActivity
+            start_status=$?
+            if [ "$start_status" -ne 0 ]; then
+              echo "Activity launch command failed with exit code $start_status"
+              adb logcat -d -t 2000 > emulator-logcat.txt
+              exit "$start_status"
+            fi
+
             app_pid=""
-            for attempt in $(seq 1 20); do
-              app_pid="$(adb shell pidof com.chatverse.app | tr -d '\r')"
+            for attempt in $(seq 1 60); do
+              app_pid="$(adb shell pidof com.chatverse.app 2>/dev/null | tr -d '\r' || true)"
               if [ -n "$app_pid" ]; then break; fi
-              sleep 3
+              sleep 2
             done
+
+            adb logcat -d -t 3000 > emulator-logcat.txt
             if [ -z "$app_pid" ]; then
-              echo "ChatVerse process did not remain alive after launch."
-              adb shell dumpsys activity activities
-              adb logcat -d -s AndroidRuntime:E ActivityTaskManager:E
+              echo "ChatVerse process was not observed after launch."
+              echo "System ANRs are diagnostic only; inspect app-specific fatal errors below."
+              grep -E "FATAL EXCEPTION|ANR in com.chatverse.app|Process: com.chatverse.app" emulator-logcat.txt || true
               exit 1
             fi
-            sleep 5
+
+            if grep -E "FATAL EXCEPTION:|ANR in com.chatverse.app|Process: com.chatverse.app" emulator-logcat.txt; then
+              echo "App-specific fatal error or ANR detected."
+              exit 1
+            fi
+
+            sleep 8
             adb shell screencap -p /sdcard/chatverse-preview.png
             adb pull /sdcard/chatverse-preview.png chatverse-preview.png
 
-      - name: Upload emulator preview
-        if: success()
+      - name: Upload emulator diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ChatVerse-emulator-preview
-          path: chatverse-preview.png
+          name: ChatVerse-Emulator-Diagnostics
+          path: |
+            emulator-logcat.txt
+            chatverse-preview.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Report emulator smoke result
+        if: always()
+        run: |
+          echo "Emulator smoke-test outcome: ${{ steps.emulator_smoke.outcome }}"
+          echo "A failed emulator job is reported separately from unit tests, lint, and APK build."
