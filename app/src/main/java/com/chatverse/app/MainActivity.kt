@@ -1989,8 +1989,19 @@ private fun UpdatesScreen(accessToken:String) {
             if(r.first !in 200..299){status="Stories gagal dimuat (${r.first}).";return}
             val a=org.json.JSONArray(r.second)
             stories=(0 until a.length()).map { i -> val x=a.getJSONObject(i); StoryItem(x.optString("id"),x.optString("user_id"),x.optString("text_content"),x.optString("caption"),x.optString("audience"),x.optString("expires_at")) }
-            val cf=supabaseCall("/rest/v1/story_close_friends?owner_id=eq.$myId&select=friend_id,profiles(username,display_name)",accessToken)
-            if(cf.first in 200..299){val ar=org.json.JSONArray(cf.second);closeFriends=(0 until ar.length()).map { i -> val x=ar.getJSONObject(i);val p=x.optJSONObject("profiles");x.optString("friend_id") to (p?.optString("display_name").orEmpty().ifBlank{p?.optString("username").orEmpty()}) }}
+            val cf=supabaseCall("/rest/v1/story_close_friends?owner_id=eq.$myId&select=friend_id",accessToken)
+            if(cf.first in 200..299){
+                val ar=org.json.JSONArray(cf.second)
+                val ids=(0 until ar.length()).map{ar.getJSONObject(it).optString("friend_id")}.filter{it.isNotBlank()}
+                if(ids.isEmpty()) closeFriends=emptyList() else {
+                    val profileRows=supabaseCall("/rest/v1/profiles?id=in.(${ids.joinToString(",")})&select=id,username,display_name",accessToken)
+                    if(profileRows.first in 200..299){
+                        val pr=org.json.JSONArray(profileRows.second)
+                        val names=(0 until pr.length()).associate{val x=pr.getJSONObject(it);x.optString("id") to x.optString("display_name").ifBlank{x.optString("username")}}
+                        closeFriends=ids.map{it to names[it].orEmpty()}
+                    }
+                }
+            }
             status=if(stories.isEmpty())"Belum ada Story aktif." else "Story aktif • kedaluwarsa otomatis 24 jam"
         }catch(_:Exception){status="Koneksi bermasalah."}
     }
