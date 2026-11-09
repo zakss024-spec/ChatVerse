@@ -62,10 +62,21 @@ jobs:
           disable-animations: true
           script: |
             adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -n com.chatverse.app/.MainActivity
-            sleep 15
-            app_pid="$(adb shell pidof com.chatverse.app | tr -d '\r')"
-            test -n "$app_pid" || { adb logcat -d; exit 1; }
+            adb shell am force-stop com.chatverse.app || true
+            adb shell am start -W -n com.chatverse.app/.MainActivity
+            app_pid=""
+            for attempt in $(seq 1 20); do
+              app_pid="$(adb shell pidof com.chatverse.app | tr -d '\r')"
+              if [ -n "$app_pid" ]; then break; fi
+              sleep 3
+            done
+            if [ -z "$app_pid" ]; then
+              echo "ChatVerse process did not remain alive after launch."
+              adb shell dumpsys activity activities
+              adb logcat -d -s AndroidRuntime:E ActivityTaskManager:E
+              exit 1
+            fi
+            sleep 5
             adb shell screencap -p /sdcard/chatverse-preview.png
             adb pull /sdcard/chatverse-preview.png chatverse-preview.png
 
