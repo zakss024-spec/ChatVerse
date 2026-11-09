@@ -451,7 +451,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 92.dp)
             ) {
                 Spacer(Modifier.height(22.dp))
-                Header()
+                Header(onProfileClick = { selectedTab = 3 })
                 Spacer(Modifier.height(16.dp))
                 Crossfade(targetState = selectedTab, modifier = Modifier.weight(1f).fillMaxWidth(), label = "mainTabTransition") { tab ->
                     when (tab) {
@@ -475,7 +475,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 }
 
 @Composable
-private fun Header() {
+private fun Header(onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -491,7 +491,7 @@ private fun Header() {
         Box(
             modifier = Modifier.size(46.dp).clip(CircleShape)
                 .background(Brush.linearGradient(listOf(Color(0xFF244B4C), Color(0xFF13272E))))
-                .clickable { },
+                .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
             Text("Z", color = Mint, fontWeight = FontWeight.Bold, fontSize = 18.sp)
