@@ -50,6 +50,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -1116,6 +1118,7 @@ private fun GroupsScreen(accessToken: String) {
         return
     }
 
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
     Text("Groups", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(6.dp))
     Text("Buat ruang obrolan bersama teman-temanmu.", color = Muted, fontSize = 12.sp)
@@ -1227,6 +1230,7 @@ private fun GroupsScreen(accessToken: String) {
         interactionSource = createGroupInteraction,
         modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = createGroupScale, scaleY = createGroupScale)) {
         Text(if (busy) "Memproses..." else "Buat grup")
+    }
     }
 }
 
@@ -1351,7 +1355,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                         }
                     }
                 }
-                if (myRole == "admin") {
+                if (myRole == "admin" || myRole == "owner") {
                     Spacer(Modifier.height(8.dp))
                     Text("Tambah anggota", color = Mint, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(value = memberSearch, onValueChange = {
@@ -1702,6 +1706,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
         }
     }
 
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
     Text("Your profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
     Text(status, color = Mint, fontSize = 12.sp)
@@ -1743,6 +1748,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
         label = "Sign out",
         modifier = Modifier.fillMaxWidth()
     ) { onLogout() }
+    }
 }
 @Composable
 private fun FeatureCard(title: String, subtitle: String) {
