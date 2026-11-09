@@ -1958,7 +1958,7 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
     }
 }
 
-private data class StoryItem(val id:String,val userId:String,val text:String,val caption:String,val audience:String,val expiresAt:String)
+private data class StoryItem(val id:String,val userId:String,val type:String,val text:String,val caption:String,val audience:String,val mediaPath:String,val expiresAt:String)
 
 @Composable
 private fun UpdatesScreen(accessToken:String) {
@@ -1978,6 +1978,60 @@ private fun UpdatesScreen(accessToken:String) {
     var status by remember { mutableStateOf("Memuat Stories...") }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val uploadStoryMedia: (Uri, String) -> Unit = { uri, type ->
+        scope.launch {
+            busy = true
+            try {
+                val mime = context.contentResolver.getType(uri).orEmpty()
+                val allowed = if (type == "image") listOf("image/jpeg","image/png","image/webp") else listOf("video/mp4")
+                if (mime !in allowed) {
+                    status = if (type == "image") "Format foto harus JPG, PNG, atau WEBP." else "Video harus MP4."
+                } else {
+                    val bytes = withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
+                    if (bytes == null || bytes.isEmpty() || bytes.size > 20 * 1024 * 1024) {
+                        status = "File kosong atau melebihi batas 20 MB."
+                    } else {
+                        val storyId = java.util.UUID.randomUUID().toString()
+                        val extension = when (mime) { "image/jpeg" -> "jpg"; "image/png" -> "png"; "image/webp" -> "webp"; else -> "mp4" }
+                        val path = "$myId/$storyId/media.$extension"
+                        val record = supabaseCall("/rest/v1/stories", accessToken, "POST",
+                            JSONObject().put("id",storyId).put("user_id",myId).put("story_type",type)
+                                .put("text_content","").put("caption",caption.trim()).put("audience",audience).put("media_path",path))
+                        if (record.first !in 200..299) {
+                            status = "Data Story gagal dibuat (${record.first})."
+                        } else {
+                            val uploaded = withContext(Dispatchers.IO) {
+                                val request = Request.Builder()
+                                    .url(BuildConfig.SUPABASE_URL + "/storage/v1/object/story-media/" + path)
+                                    .addHeader("apikey",BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                                    .addHeader("Authorization","Bearer $accessToken")
+                                    .addHeader("Content-Type",mime)
+                                    .post(bytes.toRequestBody(mime.toMediaType()))
+                                    .build()
+                                httpClient.newCall(request).execute().use { it.isSuccessful }
+                            }
+                            if (uploaded) {
+                                caption = ""
+                                reload()
+                                status = "Story media berhasil diunggah dan berlaku 24 jam."
+                            } else {
+                                supabaseCall("/rest/v1/stories?id=eq.$storyId",accessToken,"DELETE")
+                                status = "Upload gagal. Data Story dibersihkan."
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) { status = "Upload gagal. Periksa koneksi dan izin file." }
+            finally { busy = false }
+        }
+    }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) uploadStoryMedia(uri,"image")
+    }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) uploadStoryMedia(uri,"video")
+    }
 
     suspend fun reload() {
         try {
@@ -1985,10 +2039,10 @@ private fun UpdatesScreen(accessToken:String) {
             if(u.first !in 200..299){status="Sesi perlu diperbarui.";return}
             myId=JSONObject(u.second).optString("id")
             val now=java.time.Instant.now().toString()
-            val r=supabaseCall("/rest/v1/stories?expires_at=gt.${URLEncoder.encode(now,"UTF-8")}&select=id,user_id,text_content,caption,audience,expires_at&order=created_at.desc&limit=100",accessToken)
+            val r=supabaseCall("/rest/v1/stories?expires_at=gt.${URLEncoder.encode(now,"UTF-8")}&select=id,user_id,story_type,text_content,caption,audience,media_path,expires_at&order=created_at.desc&limit=100",accessToken)
             if(r.first !in 200..299){status="Stories gagal dimuat (${r.first}).";return}
             val a=org.json.JSONArray(r.second)
-            stories=(0 until a.length()).map { i -> val x=a.getJSONObject(i); StoryItem(x.optString("id"),x.optString("user_id"),x.optString("text_content"),x.optString("caption"),x.optString("audience"),x.optString("expires_at")) }
+            stories=(0 until a.length()).map { i -> val x=a.getJSONObject(i); StoryItem(x.optString("id"),x.optString("user_id"),x.optString("story_type"),x.optString("text_content"),x.optString("caption"),x.optString("audience"),x.optString("media_path"),x.optString("expires_at")) }
             val cf=supabaseCall("/rest/v1/story_close_friends?owner_id=eq.$myId&select=friend_id",accessToken)
             if(cf.first in 200..299){
                 val ar=org.json.JSONArray(cf.second)
@@ -2027,6 +2081,18 @@ private fun UpdatesScreen(accessToken:String) {
                     Text(story.text.ifBlank{story.caption},color=Color.White,fontSize=22.sp,fontWeight=FontWeight.SemiBold)
                     if(story.text.isNotBlank()&&story.caption.isNotBlank())Text(story.caption,color=Muted)
                     Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)
+                    if(story.mediaPath.isNotBlank()) TextButton(onClick={
+                        scope.launch {
+                            try {
+                                val signed=supabaseCall("/storage/v1/object/sign/story-media/${story.mediaPath}",accessToken,"POST",JSONObject().put("expiresIn",300))
+                                if(signed.first in 200..299) {
+                                    val path=JSONObject(signed.second).optString("signedURL")
+                                    val full=if(path.startsWith("http")) path else BuildConfig.SUPABASE_URL+path
+                                    context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(full)))
+                                } else status="Media belum dapat dibuka (${signed.first})."
+                            } catch (_:Exception) { status="Tidak dapat membuka media Story." }
+                        }
+                    }) { Text(if(story.type=="video") "Putar video" else "Buka foto",color=Cyan) }
                     Text("Kedaluwarsa: ${story.expiresAt}",color=Muted,fontSize=10.sp)
                 }
             }
@@ -2047,13 +2113,18 @@ private fun UpdatesScreen(accessToken:String) {
         Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Updates",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.SemiBold);Text("Stories 24 jam dan Close Friends",color=Muted,fontSize=12.sp)};TextButton(onClick={scope.launch{reload()}}){Text("Refresh",color=Mint)}}
         Text(status,color=Mint,fontSize=11.sp)
         if(stories.isEmpty())FeatureCard("Belum ada Story","Buat Story teks. Story foto/video masih menunggu integrasi upload media.")
-        stories.forEach{story->Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth().clickable{selected=story}){Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(if(story.userId==myId)"Story kamu" else "Story teman",color=Mint,fontSize=10.sp);Text(story.text.ifBlank{story.caption},color=Color.White,fontWeight=FontWeight.SemiBold);Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)}}}
+        stories.forEach{story->Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth().clickable{selected=story}){Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(if(story.userId==myId)"Story kamu" else "Story teman",color=Mint,fontSize=10.sp);Text(story.text.ifBlank{story.caption.ifBlank{if(story.type=="video")"Story video" else if(story.type=="image")"Story foto" else "Story"}},color=Color.White,fontWeight=FontWeight.SemiBold);Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)}}}
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF294044)))
         Text("Buat Story teks",color=Color.White,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
         OutlinedTextField(value=draft,onValueChange={draft=it.take(2000)},label={Text("Tulis Story (maks. 2000)")},modifier=Modifier.fillMaxWidth(),minLines=2)
         OutlinedTextField(value=caption,onValueChange={caption=it.take(500)},label={Text("Caption opsional")},modifier=Modifier.fillMaxWidth())
         TextButton(onClick={audience=if(audience=="everyone")"close_friends" else "everyone"}){Text(if(audience=="everyone")"Audiens: Semua pengguna" else "Audiens: Close Friends",color=Cyan)}
         Button(enabled=draft.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth(),onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/stories",accessToken,"POST",JSONObject().put("user_id",myId).put("story_type","text").put("text_content",draft.trim()).put("caption",caption.trim()).put("audience",audience));if(r.first in 200..299){draft="";caption="";reload();status="Story diterbitkan; berlaku 24 jam."}else status="Gagal membuat Story (${r.first})."}finally{busy=false}}}){Text(if(busy)"Menerbitkan..." else "Terbitkan Story")}
+        Text("Atau unggah media (maks. 20 MB)",color=Muted,fontSize=11.sp)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Button(enabled=!busy,modifier=Modifier.weight(1f),onClick={imagePicker.launch("image/*")}) { Text("Pilih foto") }
+            Button(enabled=!busy,modifier=Modifier.weight(1f),onClick={videoPicker.launch("video/mp4")}) { Text("Pilih video") }
+        }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF294044)))
         Text("Close Friends",color=Color.White,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
         OutlinedTextField(value=friendQuery,onValueChange={friendQuery=it.lowercase().filter{c->c.isLetterOrDigit()||c=='_'||c=='.'}.take(30)},label={Text("Username teman")},singleLine=true,modifier=Modifier.fillMaxWidth())
