@@ -677,6 +677,20 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         }
     }
 
+    LaunchedEffect(draft, myUserId, conversationId) {
+        if (myUserId.isNotBlank()) {
+            delay(if (draft.isBlank()) 0 else 450)
+            val typingBody = JSONObject()
+                .put("conversation_id", conversationId)
+                .put("user_id", myUserId)
+                .put("is_typing", draft.isNotBlank())
+                .put("updated_at", java.time.Instant.now().toString())
+            runCatching {
+                supabaseCall("/rest/v1/conversation_typing?on_conflict=conversation_id,user_id", accessToken, "UPSERT", typingBody)
+            }
+        }
+    }
+
     LaunchedEffect(accessToken, conversationId) {
         try {
             val user = supabaseCall("/auth/v1/user", accessToken)
@@ -870,17 +884,6 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         }
         OutlinedTextField(value = draft, onValueChange = { value ->
             draft = value.take(2000)
-            scope.launch {
-                delay(450)
-                if (myUserId.isNotBlank()) {
-                    val typingBody = JSONObject()
-                        .put("conversation_id", conversationId)
-                        .put("user_id", myUserId)
-                        .put("is_typing", draft.isNotBlank())
-                        .put("updated_at", java.time.Instant.now().toString())
-                    supabaseCall("/rest/v1/conversation_typing?on_conflict=conversation_id,user_id", accessToken, "UPSERT", typingBody)
-                }
-            }
         }, placeholder = { Text("Tulis pesan...") }, modifier = Modifier.weight(1f), maxLines = 4)
         Spacer(Modifier.width(8.dp))
         Button(enabled = draft.isNotBlank() && !sending && !uploadingMedia && myUserId.isNotBlank(), onClick = {
