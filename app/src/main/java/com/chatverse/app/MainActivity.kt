@@ -2079,7 +2079,7 @@ private fun UpdatesScreen(accessToken:String) {
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(20.dp),modifier=Modifier.fillMaxWidth()){
                 Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text(if(story.userId==myId)"Story kamu" else "Story",color=Mint,fontSize=11.sp)
-                    Text(story.text.ifBlank{story.caption},color=Color.White,fontSize=22.sp,fontWeight=FontWeight.SemiBold)
+                    Text(story.text.ifBlank{story.caption.ifBlank{if(story.type=="video")"Story video" else if(story.type=="image")"Story foto" else "Story"}},color=Color.White,fontSize=22.sp,fontWeight=FontWeight.SemiBold)
                     if(story.text.isNotBlank()&&story.caption.isNotBlank())Text(story.caption,color=Muted)
                     Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)
                     if(story.mediaPath.isNotBlank()) TextButton(onClick={
@@ -2113,7 +2113,7 @@ private fun UpdatesScreen(accessToken:String) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(9.dp)){
         Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Updates",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.SemiBold);Text("Stories 24 jam dan Close Friends",color=Muted,fontSize=12.sp)};TextButton(onClick={scope.launch{reload()}}){Text("Refresh",color=Mint)}}
         Text(status,color=Mint,fontSize=11.sp)
-        if(stories.isEmpty())FeatureCard("Belum ada Story","Buat Story teks. Story foto/video masih menunggu integrasi upload media.")
+        if(stories.isEmpty())FeatureCard("Belum ada Story","Buat Story teks atau unggah foto dan video MP4. Story aktif akan ditampilkan selama masa berlakunya.")
         stories.forEach{story->Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth().clickable{selected=story}){Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(if(story.userId==myId)"Story kamu" else "Story teman",color=Mint,fontSize=10.sp);Text(story.text.ifBlank{story.caption.ifBlank{if(story.type=="video")"Story video" else if(story.type=="image")"Story foto" else "Story"}},color=Color.White,fontWeight=FontWeight.SemiBold);Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)}}}
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF294044)))
         Text("Buat Story teks",color=Color.White,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
