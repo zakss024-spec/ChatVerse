@@ -909,6 +909,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             }
             myUserId = JSONObject(user.second).optString("id")
             while (true) {
+                try {
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
                 peerTyping = typingResponse.first in 200..299 && org.json.JSONArray(typingResponse.second).length() > 0
@@ -945,6 +946,12 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                     status = "Pesan diperbarui otomatis"
                 } else status = "Gagal memuat pesan. Coba lagi."
                 delay(4000)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    status = "Koneksi terputus. Mencoba menyambungkan kembali..."
+                    delay(4000)
+                }
             }
         } catch (_: Exception) {
             status = "Koneksi terputus. Periksa internet."
@@ -1488,6 +1495,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                 if (groupRows.length() > 0) groupCreatorId = groupRows.getJSONObject(0).optString("created_by")
             }
             while (true) {
+                try {
                 val memberResponse = supabaseCall("/rest/v1/conversation_members?conversation_id=eq." + conversationId + "&select=user_id,role,profiles(username,display_name)&order=joined_at.asc", accessToken)
                 if (memberResponse.first in 200..299) {
                     val memberRows = org.json.JSONArray(memberResponse.second)
@@ -1513,6 +1521,12 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                     status = "Grup • pembaruan otomatis"
                 } else status = "Tidak dapat memuat pesan (" + result.first + ")."
                 delay(4000)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    status = "Koneksi terputus. Mencoba menyambungkan kembali..."
+                    delay(4000)
+                }
             }
         } catch (_: Exception) { status = "Koneksi terputus. Periksa internet." }
     }
