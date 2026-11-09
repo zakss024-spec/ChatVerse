@@ -196,6 +196,7 @@ private suspend fun supabaseCall(path: String, token: String, method: String = "
                 builder.addHeader("Prefer", "resolution=merge-duplicates,return=minimal")
                 builder.post((payload ?: JSONObject()).toString().toRequestBody(jsonType))
             }
+            "DELETE" -> builder.delete()
             else -> builder.get()
         }
         httpClient.newCall(builder.build()).execute().use { response ->
@@ -582,7 +583,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 Crossfade(targetState = selectedTab, modifier = Modifier.weight(1f).fillMaxWidth(), label = "mainTabTransition") { tab ->
                     when (tab) {
                         0 -> ChatsHubScreen(accessToken)
-                        1 -> UpdatesScreen()
+                        1 -> UpdatesScreen(accessToken)
                         2 -> CommunitiesScreen(accessToken)
                         3 -> CallsScreen()
                         else -> ProfileScreen(accessToken, onLogout)
@@ -1957,26 +1958,97 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
     }
 }
 
+private data class StoryItem(val id:String,val userId:String,val text:String,val caption:String,val audience:String,val expiresAt:String)
+
 @Composable
-private fun UpdatesScreen() {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("Updates", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-        Text("Status dan kabar terbaru dari kontakmu", color = Muted, fontSize = 12.sp)
-        FeatureCard(
-            "Stories belum diaktifkan",
-            "Fitur Story 24 jam sedang menunggu tabel, penyimpanan privat, kontrol audiens, dan pengujian kedaluwarsa di backend."
-        )
-        FeatureCard(
-            "Close Friends",
-            "Daftar teman dekat dan pembatasan akses Story belum tersedia. Belum ada Story yang ditampilkan sebagai data asli."
-        )
-        FeatureCard(
-            "Privasi Updates",
-            "Pengaturan siapa yang dapat melihat dan membalas Story akan tersedia setelah kontrol akses server selesai."
-        )
+private fun UpdatesScreen(accessToken:String) {
+    var myId by remember { mutableStateOf("") }
+    var stories by remember { mutableStateOf(listOf<StoryItem>()) }
+    var selected by remember { mutableStateOf<StoryItem?>(null) }
+    var draft by remember { mutableStateOf("") }
+    var caption by remember { mutableStateOf("") }
+    var audience by remember { mutableStateOf("everyone") }
+    var reply by remember { mutableStateOf("") }
+    var replies by remember { mutableStateOf(listOf<Pair<String,String>>()) }
+    var reactions by remember { mutableStateOf(listOf<String>()) }
+    var viewers by remember { mutableStateOf(listOf<String>()) }
+    var closeFriends by remember { mutableStateOf(listOf<Pair<String,String>>()) }
+    var friendQuery by remember { mutableStateOf("") }
+    var friendResults by remember { mutableStateOf(listOf<Triple<String,String,String>>()) }
+    var status by remember { mutableStateOf("Memuat Stories...") }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun reload() {
+        try {
+            val u=supabaseCall("/auth/v1/user",accessToken)
+            if(u.first !in 200..299){status="Sesi perlu diperbarui.";return}
+            myId=JSONObject(u.second).optString("id")
+            val now=java.time.Instant.now().toString()
+            val r=supabaseCall("/rest/v1/stories?expires_at=gt.${URLEncoder.encode(now,"UTF-8")}&select=id,user_id,text_content,caption,audience,expires_at&order=created_at.desc&limit=100",accessToken)
+            if(r.first !in 200..299){status="Stories gagal dimuat (${r.first}).";return}
+            val a=org.json.JSONArray(r.second)
+            stories=(0 until a.length()).map { i -> val x=a.getJSONObject(i); StoryItem(x.optString("id"),x.optString("user_id"),x.optString("text_content"),x.optString("caption"),x.optString("audience"),x.optString("expires_at")) }
+            val cf=supabaseCall("/rest/v1/story_close_friends?owner_id=eq.$myId&select=friend_id,profiles(username,display_name)",accessToken)
+            if(cf.first in 200..299){val ar=org.json.JSONArray(cf.second);closeFriends=(0 until ar.length()).map { i -> val x=ar.getJSONObject(i);val p=x.optJSONObject("profiles");x.optString("friend_id") to (p?.optString("display_name").orEmpty().ifBlank{p?.optString("username").orEmpty()}) }}
+            status=if(stories.isEmpty())"Belum ada Story aktif." else "Story aktif • kedaluwarsa otomatis 24 jam"
+        }catch(_:Exception){status="Koneksi bermasalah."}
+    }
+    LaunchedEffect(accessToken){reload()}
+    LaunchedEffect(selected?.id) {
+        val story=selected?:return@LaunchedEffect
+        try {
+            if(story.userId!=myId) supabaseCall("/rest/v1/story_views",accessToken,"POST",JSONObject().put("story_id",story.id).put("viewer_id",myId))
+            val rr=supabaseCall("/rest/v1/story_reactions?story_id=eq.${story.id}&select=emoji",accessToken)
+            if(rr.first in 200..299){val a=org.json.JSONArray(rr.second);reactions=(0 until a.length()).map{a.getJSONObject(it).optString("emoji")}}
+            val rp=supabaseCall("/rest/v1/story_replies?story_id=eq.${story.id}&select=sender_id,content&order=created_at.asc&limit=40",accessToken)
+            if(rp.first in 200..299){val a=org.json.JSONArray(rp.second);replies=(0 until a.length()).map{a.getJSONObject(it).optString("sender_id") to a.getJSONObject(it).optString("content")}}
+            if(story.userId==myId){val v=supabaseCall("/rest/v1/story_views?story_id=eq.${story.id}&select=viewer_id&order=viewed_at.desc",accessToken);if(v.first in 200..299){val a=org.json.JSONArray(v.second);viewers=(0 until a.length()).map{a.getJSONObject(it).optString("viewer_id")}}}else viewers=emptyList()
+        }catch(_:Exception){status="Detail Story belum tersinkron."}
+    }
+    if(selected!=null){
+        val story=selected!!
+        Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(8.dp)){
+            TextButton(onClick={selected=null;replies=emptyList();reactions=emptyList();viewers=emptyList()}){Text("← Updates",color=Mint)}
+            Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(20.dp),modifier=Modifier.fillMaxWidth()){
+                Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                    Text(if(story.userId==myId)"Story kamu" else "Story",color=Mint,fontSize=11.sp)
+                    Text(story.text.ifBlank{story.caption},color=Color.White,fontSize=22.sp,fontWeight=FontWeight.SemiBold)
+                    if(story.text.isNotBlank()&&story.caption.isNotBlank())Text(story.caption,color=Muted)
+                    Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)
+                    Text("Kedaluwarsa: ${story.expiresAt}",color=Muted,fontSize=10.sp)
+                }
+            }
+            Row(horizontalArrangement=Arrangement.spacedBy(2.dp)){listOf("❤️","😂","😮","😢","👏","🔥").forEach{e->TextButton(enabled=story.userId!=myId&&!busy,onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/story_reactions",accessToken,"POST",JSONObject().put("story_id",story.id).put("user_id",myId).put("emoji",e));if(r.first in 200..299)reactions=reactions+e else status=if(r.first==409)"Kamu sudah bereaksi." else "Reaksi gagal (${r.first})."}finally{busy=false}}}){Text(e)}}}
+            Text("Reaksi: ${reactions.joinToString(" ")}",color=Muted,fontSize=11.sp)
+            if(story.userId==myId){Text("Dilihat oleh ${viewers.size} akun",color=Mint);viewers.take(12).forEach{Text("• ${it.take(8)}…",color=Muted,fontSize=10.sp)}}
+            if(story.userId!=myId){
+                OutlinedTextField(value=reply,onValueChange={reply=it.take(1000)},label={Text("Balas Story")},modifier=Modifier.fillMaxWidth())
+                Button(enabled=reply.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth(),onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/story_replies",accessToken,"POST",JSONObject().put("story_id",story.id).put("sender_id",myId).put("content",reply.trim()));if(r.first in 200..299){replies=replies+(myId to reply.trim());reply=""}else status="Balasan gagal (${r.first})."}finally{busy=false}}}){Text("Kirim balasan")}
+            }
+            Text("Balasan",color=Color.White,fontWeight=FontWeight.SemiBold)
+            LazyColumn(Modifier.weight(1f)){items(replies){item->Text((if(item.first==myId)"Kamu: " else "Anggota: ")+item.second,color=Color.White,fontSize=12.sp)}}
+            Text(status,color=Mint,fontSize=11.sp)
+        }
+        return
+    }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(9.dp)){
+        Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Updates",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.SemiBold);Text("Stories 24 jam dan Close Friends",color=Muted,fontSize=12.sp)};TextButton(onClick={scope.launch{reload()}}){Text("Refresh",color=Mint)}}
+        Text(status,color=Mint,fontSize=11.sp)
+        if(stories.isEmpty())FeatureCard("Belum ada Story","Buat Story teks. Story foto/video masih menunggu integrasi upload media.")
+        stories.forEach{story->Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth().clickable{selected=story}){Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(if(story.userId==myId)"Story kamu" else "Story teman",color=Mint,fontSize=10.sp);Text(story.text.ifBlank{story.caption},color=Color.White,fontWeight=FontWeight.SemiBold);Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)}}}
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF294044)))
+        Text("Buat Story teks",color=Color.White,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
+        OutlinedTextField(value=draft,onValueChange={draft=it.take(2000)},label={Text("Tulis Story (maks. 2000)")},modifier=Modifier.fillMaxWidth(),minLines=2)
+        OutlinedTextField(value=caption,onValueChange={caption=it.take(500)},label={Text("Caption opsional")},modifier=Modifier.fillMaxWidth())
+        TextButton(onClick={audience=if(audience=="everyone")"close_friends" else "everyone"}){Text(if(audience=="everyone")"Audiens: Semua pengguna" else "Audiens: Close Friends",color=Cyan)}
+        Button(enabled=draft.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth(),onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/stories",accessToken,"POST",JSONObject().put("user_id",myId).put("story_type","text").put("text_content",draft.trim()).put("caption",caption.trim()).put("audience",audience));if(r.first in 200..299){draft="";caption="";reload();status="Story diterbitkan; berlaku 24 jam."}else status="Gagal membuat Story (${r.first})."}finally{busy=false}}}){Text(if(busy)"Menerbitkan..." else "Terbitkan Story")}
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF294044)))
+        Text("Close Friends",color=Color.White,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
+        OutlinedTextField(value=friendQuery,onValueChange={friendQuery=it.lowercase().filter{c->c.isLetterOrDigit()||c=='_'||c=='.'}.take(30)},label={Text("Username teman")},singleLine=true,modifier=Modifier.fillMaxWidth())
+        Button(enabled=friendQuery.length>=3&&!busy,modifier=Modifier.fillMaxWidth(),onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/profiles?username=ilike.*${URLEncoder.encode(friendQuery,"UTF-8")}*&select=id,username,display_name&limit=10",accessToken);if(r.first in 200..299){val a=org.json.JSONArray(r.second);friendResults=(0 until a.length()).map{val x=a.getJSONObject(it);Triple(x.optString("id"),x.optString("username"),x.optString("display_name"))}.filter{it.first!=myId};status=if(friendResults.isEmpty())"Username tidak ditemukan." else "Pilih akun untuk menambahkan."}else status="Pencarian gagal (${r.first})."}finally{busy=false}}}){Text("Cari teman")}
+        friendResults.forEach{f->Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(f.third.ifBlank{f.second},color=Color.White,fontSize=12.sp);Text("@${f.second}",color=Muted,fontSize=10.sp)};TextButton(enabled=!busy&&closeFriends.none{it.first==f.first},onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/story_close_friends",accessToken,"POST",JSONObject().put("owner_id",myId).put("friend_id",f.first));if(r.first in 200..299){closeFriends=closeFriends+(f.first to f.second);friendResults=friendResults.filterNot{it.first==f.first}}else status="Gagal menambahkan (${r.first})."}finally{busy=false}}}){Text("Tambah",color=Mint)}}}
+        closeFriends.forEach{friend->Row(verticalAlignment=Alignment.CenterVertically){Text(friend.second.ifBlank{friend.first.take(8)},color=Color.White,modifier=Modifier.weight(1f));TextButton(enabled=!busy,onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/story_close_friends?owner_id=eq.$myId&friend_id=eq.${friend.first}",accessToken,"DELETE");if(r.first in 200..299)closeFriends=closeFriends.filterNot{it.first==friend.first}else status="Gagal menghapus (${r.first})."}finally{busy=false}}}){Text("Hapus",color=Color(0xFFFF9A9A))}}}
     }
 }
 
