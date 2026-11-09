@@ -1805,7 +1805,7 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
         ),
         label = "matrixRainPhase"
     )
-    val columns = remember { List(24) { kotlin.random.Random.nextInt(0, 1800) } }
+    val columns = remember { List(16) { kotlin.random.Random.nextInt(0, 1800) } }
 
     LaunchedEffect(Unit) {
         delay(550)
@@ -1820,15 +1820,15 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
                 val native = canvas.nativeCanvas
                 val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                     typeface = android.graphics.Typeface.MONOSPACE
-                    textSize = 27f
+                    textSize = 22f
                 }
                 val glyphs = "01アイウエオカキクケコサシスセソタチツテトナニヌネノ"
                 val columnWidth = size.width / columns.size
-                val cellHeight = 31f
+                val cellHeight = 28f
                 columns.forEachIndexed { index, seed ->
                     val speed = 0.62f + (index % 6) * 0.13f
                     val offset = (phase * (size.height + 500f) * speed + seed) % (size.height + 500f)
-                    for (row in 0..13) {
+                    for (row in 0..9) {
                         val y = offset - row * cellHeight
                         if (y >= 0f && y <= size.height + cellHeight) {
                             val glyphIndex = (seed + row * 13 + index * 7) % glyphs.length
