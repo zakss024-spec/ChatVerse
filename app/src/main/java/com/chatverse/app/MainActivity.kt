@@ -66,6 +66,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -931,6 +932,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     var deletingMessage by remember { mutableStateOf<GlobalMessage?>(null) }
     var uploadingMedia by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val mediaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && myUserId.isNotBlank()) {
@@ -1039,7 +1041,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     Text(status, color = Muted, fontSize = 11.sp)
     if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
     Spacer(Modifier.height(8.dp))
-    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).fillMaxWidth(), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().weight(1f), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
             AnimatedVisibility(
@@ -1202,6 +1204,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                             )
                             messages = listOf(optimistic) + messages.filterNot { it.id == messageId }
                         }
+                        listState.scrollToItem(0)
                         notifyConversationMembers(accessToken, conversationId, messageId)
                         ChatVerseAnalytics.capture("chat_message_sent")
                         draft = ""
@@ -1235,6 +1238,7 @@ private fun GlobalChatScreen(accessToken: String) {
     var sending by remember { mutableStateOf(false) }
     var loadingMessages by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     LaunchedEffect(accessToken) {
         try {
@@ -1293,6 +1297,7 @@ private fun GlobalChatScreen(accessToken: String) {
         }
     }
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxWidth().height(430.dp),
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 8.dp),
@@ -1334,6 +1339,7 @@ private fun GlobalChatScreen(accessToken: String) {
                             if (messageId.isNotBlank()) {
                                 messages = listOf(GlobalMessage(messageId, myUserId, textToSend)) + messages.filterNot { it.id == messageId }
                             }
+                            listState.scrollToItem(0)
                             draft = ""
                             status = "Pesan terkirim"
                         } else {
@@ -1580,6 +1586,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingGroup by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     LaunchedEffect(accessToken, conversationId) {
         try {
@@ -1902,7 +1909,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
         )
     }
     Spacer(Modifier.height(8.dp))
-    LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp),
+    LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(messages, key = { it.id }) { message ->
             val mine = message.senderId == myUserId
@@ -1952,6 +1959,7 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                                     )
                                 ) + messages.filterNot { it.id == messageId }
                             }
+                            listState.scrollToItem(0)
                             notifyConversationMembers(accessToken, conversationId, messageId)
                             draft = ""
                             status = "Pesan terkirim"
