@@ -18,6 +18,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      CHATVERSE_POSTHOG_API_KEY: ${{ secrets.CHATVERSE_POSTHOG_API_KEY }}
+      CHATVERSE_POSTHOG_HOST: ${{ vars.CHATVERSE_POSTHOG_HOST }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
