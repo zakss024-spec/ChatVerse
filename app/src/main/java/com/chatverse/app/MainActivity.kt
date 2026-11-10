@@ -2033,6 +2033,9 @@ private fun UpdatesScreen(accessToken:String) {
     var myId by remember { mutableStateOf("") }
     var stories by remember { mutableStateOf(listOf<StoryItem>()) }
     var selected by remember { mutableStateOf<StoryItem?>(null) }
+    var storyMediaUrl by remember { mutableStateOf<String?>(null) }
+    var storyMediaBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var storyMediaLoading by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     var caption by remember { mutableStateOf("") }
     var audience by remember { mutableStateOf("everyone") }
@@ -2140,6 +2143,38 @@ private fun UpdatesScreen(accessToken:String) {
             if(story.userId==myId){val v=supabaseCall("/rest/v1/story_views?story_id=eq.${story.id}&select=viewer_id&order=viewed_at.desc",accessToken);if(v.first in 200..299){val a=org.json.JSONArray(v.second);viewers=(0 until a.length()).map{a.getJSONObject(it).optString("viewer_id")}}}else viewers=emptyList()
         }catch(_:Exception){status="Detail Story belum tersinkron."}
     }
+    LaunchedEffect(selected?.id) {
+        storyMediaUrl = null
+        storyMediaBitmap = null
+        val story = selected ?: return@LaunchedEffect
+        if (story.mediaPath.isBlank()) return@LaunchedEffect
+        storyMediaLoading = true
+        try {
+            val signed = supabaseCall(
+                "/storage/v1/object/sign/story-media/${story.mediaPath.split("/").joinToString("/") { URLEncoder.encode(it, "UTF-8").replace("+", "%20") }}",
+                accessToken, "POST", JSONObject().put("expiresIn", 300)
+            )
+            if (signed.first in 200..299) {
+                val path = JSONObject(signed.second).optString("signedURL")
+                    .ifBlank { JSONObject(signed.second).optString("signedUrl") }
+                val full = if (path.startsWith("http")) path else BuildConfig.SUPABASE_URL + path
+                storyMediaUrl = full
+                if (story.type == "image") {
+                    storyMediaBitmap = withContext(Dispatchers.IO) {
+                        val request = Request.Builder().url(full).get().build()
+                        httpClient.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) null
+                            else response.body?.byteStream()?.use { android.graphics.BitmapFactory.decodeStream(it) }
+                        }
+                    }
+                }
+            } else status = "Media Story gagal dimuat (${signed.first})."
+        } catch (_: Exception) {
+            status = "Media Story tidak dapat dimuat. Periksa koneksi."
+        } finally {
+            storyMediaLoading = false
+        }
+    }
     if(selected!=null){
         val story=selected!!
         Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(8.dp)){
@@ -2150,18 +2185,52 @@ private fun UpdatesScreen(accessToken:String) {
                     Text(story.text.ifBlank{story.caption.ifBlank{if(story.type=="video")"Story video" else if(story.type=="image")"Story foto" else "Story"}},color=Color.White,fontSize=22.sp,fontWeight=FontWeight.SemiBold)
                     if(story.text.isNotBlank()&&story.caption.isNotBlank())Text(story.caption,color=Muted)
                     Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)
-                    if(story.mediaPath.isNotBlank()) TextButton(onClick={
-                        scope.launch {
-                            try {
-                                val signed=supabaseCall("/storage/v1/object/sign/story-media/${story.mediaPath}",accessToken,"POST",JSONObject().put("expiresIn",300))
-                                if(signed.first in 200..299) {
-                                    val path=JSONObject(signed.second).optString("signedURL")
-                                    val full=if(path.startsWith("http")) path else BuildConfig.SUPABASE_URL+path
-                                    context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(full)))
-                                } else status="Media belum dapat dibuka (${signed.first})."
-                            } catch (_:Exception) { status="Tidak dapat membuka media Story." }
+                    if (story.mediaPath.isNotBlank()) {
+                        Box(
+                            Modifier.fillMaxWidth().height(390.dp).clip(RoundedCornerShape(16.dp))
+                                .background(Color.Black),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when {
+                                storyMediaLoading -> Text("Memuat media Story...", color = Color.White)
+                                story.type == "image" && storyMediaBitmap != null -> {
+                                    androidx.compose.foundation.Image(
+                                        bitmap = storyMediaBitmap!!.asImageBitmap(),
+                                        contentDescription = "Foto Story",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                    )
+                                }
+                                story.type == "video" && storyMediaUrl != null -> {
+                                    androidx.compose.ui.viewinterop.AndroidView(
+                                        factory = { viewContext ->
+                                            android.widget.VideoView(viewContext).apply {
+                                                setVideoURI(Uri.parse(storyMediaUrl))
+                                                setOnPreparedListener { player ->
+                                                    player.isLooping = true
+                                                    start()
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxSize(),
+                                        update = { video ->
+                                            if (video.tag != story.id) {
+                                                video.tag = story.id
+                                                video.setVideoURI(Uri.parse(storyMediaUrl))
+                                                video.setOnPreparedListener { player ->
+                                                    player.isLooping = true
+                                                    video.start()
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                story.type == "image" -> Text("Foto belum dapat ditampilkan.", color = Color.White)
+                                story.type == "video" -> Text("Video belum dapat diputar.", color = Color.White)
+                                else -> Text(story.text, color = Color.White, fontSize = 22.sp)
+                            }
                         }
-                    }) { Text(if(story.type=="video") "Putar video" else "Buka foto",color=Cyan) }
+                    }
                     Text("Kedaluwarsa: ${story.expiresAt}",color=Muted,fontSize=10.sp)
                 }
             }
