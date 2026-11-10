@@ -663,7 +663,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                         0 -> ChatsHubScreen(accessToken)
                         1 -> UpdatesScreen(accessToken)
                         2 -> CommunitiesScreen(accessToken)
-                        3 -> CallsScreen()
+                        3 -> CallsScreen(accessToken)
                         else -> ProfileScreen(accessToken, onLogout)
                     }
                 }
@@ -2768,22 +2768,107 @@ private fun CommunitiesScreen(accessToken: String) {
     }
 }
 
+private data class CallHistoryItem(
+    val id: String,
+    val type: String,
+    val status: String,
+    val callerId: String,
+    val calleeId: String,
+    val createdAt: String
+)
+
 @Composable
-private fun CallsScreen() {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("Calls", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-        Text("Riwayat dan panggilan suara/video", color = Muted, fontSize = 12.sp)
-        FeatureCard(
-            "Calling belum dikonfigurasi",
-            "Backend signaling panggilan sudah disiapkan, tetapi engine media WebRTC dan layanan STUN/TURN belum dikonfigurasi. Tombol panggilan belum ditampilkan agar tidak memberi kesan panggilan sudah berfungsi."
-        )
-        FeatureCard(
-            "Yang masih diperlukan",
-            "Tabel signaling dan kontrol akses peserta sudah tersedia. Aplikasi masih membutuhkan engine media WebRTC, konfigurasi STUN/TURN, izin mikrofon/kamera, dan pengujian panggilan dua perangkat."
-        )
+private fun CallsScreen(accessToken: String) {
+    var calls by remember { mutableStateOf(emptyList<CallHistoryItem>()) }
+    var myUserId by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+    var status by remember { mutableStateOf("") }
+
+    LaunchedEffect(accessToken) {
+        loading = true
+        try {
+            val user = supabaseCall("/auth/v1/user", accessToken)
+            if (user.first in 200..299) {
+                myUserId = JSONObject(user.second).optString("id")
+                val result = supabaseCall(
+                    "/rest/v1/call_sessions?select=id,call_type,status,caller_id,callee_id,created_at&or=(caller_id.eq.\${myUserId},callee_id.eq.\${myUserId})&order=created_at.desc&limit=40",
+                    accessToken
+                )
+                if (result.first in 200..299) {
+                    val rows = org.json.JSONArray(result.second)
+                    calls = (0 until rows.length()).map { index ->
+                        val row = rows.getJSONObject(index)
+                        CallHistoryItem(row.optString("id"), row.optString("call_type"),
+                            row.optString("status"), row.optString("caller_id"),
+                            row.optString("callee_id"), row.optString("created_at"))
+                    }
+                    status = ""
+                } else status = "Riwayat panggilan belum dapat dimuat (\${result.first})."
+            } else status = "Sesi perlu diperbarui."
+        } catch (_: Exception) {
+            status = "Koneksi bermasalah. Coba muat ulang."
+        } finally { loading = false }
+    }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Calls", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+        Text("Panggilan suara dan video", color = Muted, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CallActionTile("Audio", Icons.Rounded.Call, Modifier.weight(1f))
+            CallActionTile("Video", Icons.Rounded.VideoCall, Modifier.weight(1f))
+        }
+        Text("Recent", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        when {
+            loading -> Box(Modifier.fillMaxWidth().height(110.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(color = Mint, strokeWidth = 2.dp)
+            }
+            calls.isEmpty() -> Box(Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(24.dp)).padding(22.dp),
+                contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Rounded.Call, null, tint = Mint, modifier = Modifier.size(32.dp))
+                    Text("Belum ada panggilan", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("Riwayat panggilan akan muncul di sini.", color = Muted, fontSize = 12.sp)
+                }
+            }
+            else -> calls.forEach { call ->
+                val outgoing = call.callerId == myUserId
+                Row(Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(20.dp)).padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)),
+                        contentAlignment = Alignment.Center) {
+                        Icon(if (call.type == "video") Icons.Rounded.VideoCall else Icons.Rounded.Call,
+                            null, tint = Mint)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(if (outgoing) "Panggilan keluar" else "Panggilan masuk",
+                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(if (call.type == "video") "Video" else "Audio", color = Muted, fontSize = 11.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(call.status.replaceFirstChar { it.uppercase() },
+                            color = if (call.status == "missed" || call.status == "rejected") Color(0xFFFF8585) else Mint,
+                            fontSize = 11.sp)
+                        Text(call.createdAt.take(16).replace("T", " "), color = Muted, fontSize = 9.sp)
+                    }
+                }
+            }
+        }
+        if (status.isNotBlank()) Text(status, color = Color(0xFFFFB4A9), fontSize = 11.sp)
+        FeatureCard("Panggilan belum aktif",
+            "Riwayat dan tampilan panggilan sudah tersedia. Audio/video langsung membutuhkan engine WebRTC serta uji koneksi dua perangkat; tombol mulai panggilan belum diaktifkan agar tidak membuat panggilan palsu.")
+    }
+}
+
+@Composable
+private fun CallActionTile(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier) {
+    Row(modifier.height(66.dp).glassPanel(RoundedCornerShape(20.dp)).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(icon, null, tint = Mint, modifier = Modifier.size(22.dp))
+        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
     }
 }
 
@@ -3065,15 +3150,10 @@ private fun BackgroundThemeSection() {
 
 @Composable
 private fun FeatureCard(title: String, subtitle: String) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Panel.copy(alpha = 0.82f)),
-        shape = RoundedCornerShape(22.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(18.dp)) {
+    Box(Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(22.dp)).padding(18.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            Spacer(Modifier.height(6.dp))
-            Text(subtitle, color = Muted, fontSize = 12.sp)
+            Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
     }
 }
