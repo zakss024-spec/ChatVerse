@@ -2847,6 +2847,10 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Spacer(Modifier.height(12.dp))
     AccentThemeSection()
     Spacer(Modifier.height(12.dp))
+    BackgroundThemeSection()
+    Spacer(Modifier.height(12.dp))
+    FeatureCard("Developer Contact", "zakikuk")
+    Spacer(Modifier.height(12.dp))
     AnimatedActionButton(
         label = "Sign out",
         modifier = Modifier.fillMaxWidth()
@@ -2964,6 +2968,87 @@ private fun AccentThemeSection() {
 }
 
 @Composable
+private fun BackgroundThemeSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var customHex by remember { mutableStateOf(accentColorHex(AppearanceState.background)) }
+    var feedback by remember { mutableStateOf("") }
+    val presets = listOf(
+        "Black" to Color(0xFF050607),
+        "White" to Color(0xFFE9EEF0),
+        "Gray" to Color(0xFF30363B),
+        "Emerald" to Color(0xFF073B32),
+        "Navy" to Color(0xFF101B35),
+        "Purple" to Color(0xFF241638)
+    )
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).glassPanel(RoundedCornerShape(20.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Background", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text("Pilih warna latar aplikasi. Liquid Glass tetap putih agar kontras.", color = Muted, fontSize = 12.sp)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            presets.forEach { preset ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        applyBackgroundColor(context, preset.second)
+                        customHex = accentColorHex(preset.second)
+                        feedback = "Background ${preset.first} diterapkan."
+                    }
+                ) {
+                    Box(
+                        Modifier.size(34.dp).clip(CircleShape).background(preset.second)
+                            .border(if (AppearanceState.background == preset.second) 2.dp else 1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                    )
+                    Text(preset.first, color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
+        OutlinedTextField(
+            value = customHex,
+            onValueChange = { customHex = it.take(7).uppercase() },
+            label = { Text("Custom HEX") },
+            placeholder = { Text("#102030") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = {
+                    val parsed = parseAccentColor(customHex)
+                    if (parsed == null) feedback = "Gunakan format #RRGGBB."
+                    else {
+                        applyBackgroundColor(context, parsed)
+                        customHex = accentColorHex(parsed)
+                        feedback = "Background diterapkan."
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)
+            ) { Text("Apply") }
+            TextButton(onClick = {
+                applyBackgroundColor(context, Night)
+                customHex = accentColorHex(Night)
+                feedback = "Background default dipulihkan."
+            }) { Text("Reset", color = Color.White) }
+        }
+        Box(
+            Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(15.dp))
+                .background(AppearanceState.background).border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(15.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(Modifier.fillMaxWidth(0.72f).height(34.dp).glassPanel(RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                Text("Liquid Glass preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
+    }
+}
+
+@Composable
 private fun FeatureCard(title: String, subtitle: String) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Panel.copy(alpha = 0.82f)),
@@ -2990,9 +3075,10 @@ private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .background(
         Brush.linearGradient(
             colors = listOf(
-                Color(0xB82A4248),
-                Color(0x8F172A30),
-                Color(0xA6193036)
+                Color(0x42FFFFFF),
+                Color(0x20FFFFFF),
+                Color(0x12FFFFFF),
+                Color(0x30FFFFFF)
             )
         )
     )
@@ -3000,9 +3086,10 @@ private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
         width = 1.dp,
         brush = Brush.linearGradient(
             colors = listOf(
-                Color(0x668FE8D5),
+                Color(0xEFFFFFFF),
+                Color(0x70FFFFFF),
                 Color(0x24FFFFFF),
-                Color(0x554A7B7D)
+                Color(0xBFFFFFFF)
             )
         ),
         shape = shape
@@ -3046,7 +3133,7 @@ private fun NavigationItem(
         animationSpec = spring(),
         label = "navPressScale"
     )
-    val tint by animateColorAsState(if (active) Mint else Muted, label = "navTint")
+    val tint by animateColorAsState(if (active) Color(0xFF087D63) else Muted, label = "navTint")
     val horizontalPadding by animateDpAsState(if (active) 17.dp else 12.dp, label = "navPadding")
 
     Row(
@@ -3054,14 +3141,10 @@ private fun NavigationItem(
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(18.dp))
             .then(
-                if (active) Modifier.background(
-                    Brush.linearGradient(listOf(Color(0xAA68E5C1), Color(0x553D8E83)))
-                ) else Modifier.background(Color.Transparent)
-            )
-            .border(
-                if (active) 1.dp else 0.dp,
-                if (active) Mint.copy(alpha = 0.38f) else Color.Transparent,
-                RoundedCornerShape(18.dp)
+                if (active) Modifier
+                    .background(Brush.linearGradient(listOf(Color(0xDFFFFFFF), Color(0x88FFFFFF), Color(0x4DFFFFFF))))
+                    .border(1.dp, Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
+                else Modifier.background(Color.Transparent)
             )
             .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) }
             .padding(horizontal = horizontalPadding, vertical = 11.dp),
