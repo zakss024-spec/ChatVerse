@@ -746,9 +746,11 @@ private fun ChatsHubScreen(accessToken: String) {
         }
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF173C38)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth().clickable { showGlobal = true }
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .glassPanel(RoundedCornerShape(18.dp))
+                    .clickable { showGlobal = true }
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
@@ -773,12 +775,14 @@ private fun ChatsHubScreen(accessToken: String) {
         items(inbox.filterNot { it.type == "global" || it.type == "group" }, key = { it.id }) { item ->
             val label = item.peerName.ifBlank { "@" + item.peerUsername }
             Card(
-                colors = CardDefaults.cardColors(containerColor = Panel),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth().clickable {
-                    activeId = item.id
-                    activeTitle = label
-                }
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .glassPanel(RoundedCornerShape(18.dp))
+                    .clickable {
+                        activeId = item.id
+                        activeTitle = label
+                    }
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
@@ -2930,6 +2934,36 @@ private fun FeatureCard(title: String, subtitle: String) {
 }
 
 @Composable
+private fun GlassPanelSurface(content: @Composable () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(22.dp)).padding(16.dp)
+    ) { content() }
+}
+
+private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
+    .clip(shape)
+    .background(
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xB82A4248),
+                Color(0x8F172A30),
+                Color(0xA6193036)
+            )
+        )
+    )
+    .border(
+        width = 1.dp,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color(0x668FE8D5),
+                Color(0x24FFFFFF),
+                Color(0x554A7B7D)
+            )
+        ),
+        shape = shape
+    )
+
+@Composable
 private fun GlassNavigation(
     selected: Int,
     onSelect: (Int) -> Unit,
@@ -2938,8 +2972,7 @@ private fun GlassNavigation(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(Color(0xE61A2C32))
+            .glassPanel(RoundedCornerShape(28.dp))
             .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
@@ -2975,7 +3008,15 @@ private fun NavigationItem(
         modifier = Modifier
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(18.dp))
-            .background(if (active) Color(0xFF294B4B) else Color.Transparent)
+            .background(
+                if (active) Brush.linearGradient(listOf(Color(0xAA68E5C1), Color(0x553D8E83)))
+                else Color.Transparent
+            )
+            .border(
+                if (active) 1.dp else 0.dp,
+                if (active) Mint.copy(alpha = 0.38f) else Color.Transparent,
+                RoundedCornerShape(18.dp)
+            )
             .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) }
             .padding(horizontal = horizontalPadding, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
