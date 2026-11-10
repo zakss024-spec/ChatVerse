@@ -24,7 +24,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -537,6 +540,14 @@ private fun AuthGate() {
 }
 private val Night = Color(0xFF071014)
 private val Panel = Color(0xFF142329)
+private object AppearanceState {
+    var background by mutableStateOf(Color(0xFF071014))
+}
+private fun applyBackgroundColor(context: Context, color: Color) {
+    AppearanceState.background = color
+    context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
+        .edit().putString("background_hex", accentColorHex(color)).apply()
+}
 private object AccentThemeState {
     var accent by mutableStateOf(Color(0xFF68E5C1))
     val onAccent: Color
@@ -576,8 +587,9 @@ private fun applyAccentColor(context: Context, color: Color) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val savedAccent = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE).getString("accent_hex", null)
-        savedAccent?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
+        val themePrefs = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
+        themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
+        themePrefs.getString("background_hex", null)?.let { parseAccentColor(it)?.let { color -> AppearanceState.background = color } }
         setContent {
             MaterialTheme(
                 colorScheme = androidx.compose.material3.darkColorScheme(
@@ -607,14 +619,18 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Night
+        color = AppearanceState.background
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF102329), Color(0xFF091418), Color(0xFF071014))
+                        colors = listOf(
+                            AppearanceState.background.copy(alpha = 0.96f),
+                            AppearanceState.background,
+                            AppearanceState.background.copy(alpha = 0.88f)
+                        )
                     )
                 )
         ) {
@@ -626,7 +642,21 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 Spacer(Modifier.height(22.dp))
                 Header(onProfileClick = { selectedTab = 4 })
                 Spacer(Modifier.height(16.dp))
-                Crossfade(targetState = selectedTab, modifier = Modifier.weight(1f).fillMaxWidth(), label = "mainTabTransition") { tab ->
+                AnimatedContent(
+                    targetState = selectedTab,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    transitionSpec = {
+                        (androidx.compose.animation.slideInHorizontally(
+                            animationSpec = tween(280),
+                            initialOffsetX = { fullWidth -> fullWidth / 5 }
+                        ) + fadeIn(animationSpec = tween(180))) togetherWith
+                            (slideOutHorizontally(
+                                animationSpec = tween(220),
+                                targetOffsetX = { fullWidth -> -fullWidth / 8 }
+                            ) + fadeOut(animationSpec = tween(150)))
+                    },
+                    label = "mainTabSlide"
+                ) { tab ->
                     when (tab) {
                         0 -> ChatsHubScreen(accessToken)
                         1 -> UpdatesScreen(accessToken)
