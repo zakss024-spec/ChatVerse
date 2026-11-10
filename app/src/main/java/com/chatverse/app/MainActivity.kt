@@ -965,30 +965,21 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                 supabaseCall("/rest/v1/rpc/mark_conversation_messages_read", accessToken, "POST", JSONObject().put("p_conversation_id", conversationId))
                 val typingResponse = supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=neq.$myUserId&is_typing=eq.true&updated_at=gt.${java.net.URLEncoder.encode(java.time.Instant.now().minusSeconds(12).toString(), "UTF-8")}&select=user_id&limit=1", accessToken)
                 peerTyping = typingResponse.first in 200..299 && org.json.JSONArray(typingResponse.second).length() > 0
-                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,deleted_at,media_path,media_mime_type,reply_to_message_id,reply:messages!messages_reply_to_message_id_fkey(id,sender_id,content),message_receipts(user_id,delivered_at,read_at)&order=created_at.desc&limit=100", accessToken)
+                val response = supabaseCall("/rest/v1/messages?conversation_id=eq.$conversationId&select=id,sender_id,content,deleted_at,media_path,media_mime_type,reply_to_message_id&order=created_at.desc&limit=100", accessToken)
                 if (response.first in 200..299) {
                     val array = org.json.JSONArray(response.second)
                     val loaded = mutableListOf<GlobalMessage>()
                     for (i in 0 until array.length()) {
                         val row = array.getJSONObject(i)
-                        val receipts = row.optJSONArray("message_receipts") ?: org.json.JSONArray()
-                        var delivered = false
-                        var read = false
-                        for (r in 0 until receipts.length()) {
-                            val receipt = receipts.optJSONObject(r) ?: continue
-                            if (receipt.optString("delivered_at").isNotBlank() && receipt.optString("delivered_at") != "null") delivered = true
-                            if (receipt.optString("read_at").isNotBlank() && receipt.optString("read_at") != "null") read = true
-                        }
-                        val reply = row.optJSONObject("reply")
                         loaded.add(GlobalMessage(
                             row.optString("id"),
                             row.optString("sender_id"),
                             row.optString("content"),
-                            read,
-                            delivered,
+                            false,
+                            false,
                             row.optString("reply_to_message_id").takeIf { it.isNotBlank() && it != "null" }.orEmpty(),
-                            reply?.optString("content").orEmpty(),
-                            reply?.optString("sender_id").orEmpty(),
+                            "",
+                            "",
                             row.optString("deleted_at").let { it.isNotBlank() && it != "null" },
                             row.optString("media_path").takeIf { it != "null" }.orEmpty(),
                             row.optString("media_mime_type").takeIf { it != "null" }.orEmpty()
@@ -996,7 +987,10 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                     }
                     messages = loaded
                     status = "Pesan diperbarui otomatis"
-                } else status = "Gagal memuat pesan. Coba lagi."
+                } else {
+                    android.util.Log.e("ChatVerseChat", "Load messages failed HTTP ${response.first}: ${response.second.take(500)}")
+                    status = "Gagal memuat pesan (HTTP ${response.first})."
+                }
                 delay(4000)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
@@ -1169,12 +1163,25 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                     val response = supabaseCall("/rest/v1/messages?select=id", accessToken, "POST", body, true)
                     if (response.first in 200..299) {
                         val messageId = org.json.JSONArray(response.second).optJSONObject(0)?.optString("id").orEmpty()
+                        if (messageId.isNotBlank()) {
+                            val optimistic = GlobalMessage(
+                                messageId, myUserId, content,
+                                replyToId = replyId.orEmpty(),
+                                replyContent = replyingTo?.content.orEmpty(),
+                                replySenderId = replyingTo?.senderId.orEmpty()
+                            )
+                            messages = listOf(optimistic) + messages.filterNot { it.id == messageId }
+                        }
                         notifyConversationMembers(accessToken, conversationId, messageId)
                         ChatVerseAnalytics.capture("chat_message_sent")
                         draft = ""
                         replyingTo = null
+                        status = "Pesan terkirim"
                         supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=eq.$myUserId", accessToken, "PATCH", JSONObject().put("is_typing", false).put("updated_at", java.time.Instant.now().toString()))
-                    } else status = "Pesan gagal dikirim."
+                    } else {
+                        android.util.Log.e("ChatVerseChat", "Send message failed HTTP ${response.first}: ${response.second.take(500)}")
+                        status = "Pesan gagal dikirim (HTTP ${response.first})."
+                    }
                 } catch (_: Exception) {
                     status = "Gagal mengirim pesan."
                 } finally {
@@ -1290,11 +1297,19 @@ private fun GlobalChatScreen(accessToken: String) {
                 scope.launch {
                     try {
                         val body = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId).put("message_type", "text").put("content", textToSend)
-                        val result = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
+                        val result = supabaseCall("/rest/v1/messages?select=id,sender_id,content", accessToken, "POST", body, true)
                         if (result.first in 200..299) {
+                            val created = org.json.JSONArray(result.second).optJSONObject(0)
+                            val messageId = created?.optString("id").orEmpty()
+                            if (messageId.isNotBlank()) {
+                                messages = listOf(GlobalMessage(messageId, myUserId, textToSend)) + messages.filterNot { it.id == messageId }
+                            }
                             draft = ""
                             status = "Pesan terkirim"
-                        } else status = "Pesan gagal dikirim (${result.first})."
+                        } else {
+                            android.util.Log.e("ChatVerseGlobal", "Send message failed HTTP ${result.first}: ${result.second.take(500)}")
+                            status = "Pesan gagal dikirim (HTTP ${result.first})."
+                        }
                     } catch (_: Exception) {
                         status = "Gagal mengirim. Periksa koneksi."
                     } finally {
