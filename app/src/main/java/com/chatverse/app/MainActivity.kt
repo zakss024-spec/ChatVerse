@@ -2847,7 +2847,7 @@ private fun CallsScreen(accessToken: String) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)),
                         contentAlignment = Alignment.Center) {
-                        Icon(if (call.type == "video") Icons.Rounded.VideoCall else Icons.Rounded.Call,
+                        Icon(if (call.type == "video") Icons.Rounded.Call else Icons.Rounded.Call,
                             null, tint = Mint)
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
