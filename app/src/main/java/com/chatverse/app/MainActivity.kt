@@ -814,34 +814,33 @@ private fun ChatsHubScreen(accessToken: String) {
         }
         items(inbox.filterNot { it.type == "global" || it.type == "group" }, key = { it.id }) { item ->
             val label = item.peerName.ifBlank { "@" + item.peerUsername }
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth()
-                    .glassPanel(RoundedCornerShape(18.dp))
+            Row(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable {
                         activeId = item.id
                         activeTitle = label
                     }
+                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    Modifier.size(50.dp).clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(0xFF1E6B58), Color(0xFF183B38))))
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF294B4B)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(label.firstOrNull()?.uppercase() ?: "?", color = Mint, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Muted, fontSize = 12.sp, maxLines = 1)
-                    }
-                    Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat", tint = Mint, modifier = Modifier.size(18.dp))
+                    Text(label.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f).padding(bottom = 2.dp)) {
+                    Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Spacer(Modifier.height(3.dp))
+                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Muted, fontSize = 12.sp, maxLines = 1)
+                }
+                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat", tint = Color.White.copy(alpha = 0.68f), modifier = Modifier.size(18.dp))
             }
+            Box(Modifier.fillMaxWidth().padding(start = 73.dp).height(0.6.dp).background(Color.White.copy(alpha = 0.075f)))
         }
         if (inbox.none { it.type != "global" && it.type != "group" }) {
             item {
@@ -3178,11 +3177,11 @@ private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .background(
         Brush.linearGradient(
             colors = listOf(
-                Color(0x38FFFFFF),
-                Color(0x1EFFFFFF),
-                Color(0x0DFFFFFF),
-                Color(0x24FFFFFF),
-                Color(0x16FFFFFF)
+                Color(0x48FFFFFF),
+                Color(0x22FFFFFF),
+                Color(0x0AFFFFFF),
+                Color(0x2AFFFFFF),
+                Color(0x12FFFFFF)
             )
         )
     )
