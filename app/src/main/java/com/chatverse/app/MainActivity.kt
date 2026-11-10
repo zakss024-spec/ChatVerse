@@ -2252,7 +2252,36 @@ private fun UpdatesScreen(accessToken:String) {
         Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Updates",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.SemiBold);Text("Stories 24 jam dan Close Friends",color=Muted,fontSize=12.sp)};TextButton(onClick={scope.launch{reload()}}){Text("Refresh",color=Mint)}}
         Text(status,color=Mint,fontSize=11.sp)
         if(stories.isEmpty())FeatureCard("Belum ada Story","Buat Story teks atau unggah foto dan video MP4. Story aktif akan ditampilkan selama masa berlakunya.")
-        stories.forEach{story->Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth().clickable{selected=story}){Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(if(story.userId==myId)"Story kamu" else "Story teman",color=Mint,fontSize=10.sp);Text(story.text.ifBlank{story.caption.ifBlank{if(story.type=="video")"Story video" else if(story.type=="image")"Story foto" else "Story"}},color=Color.White,fontWeight=FontWeight.SemiBold);Text(if(story.audience=="close_friends")"Close Friends" else "Semua pengguna",color=Muted,fontSize=10.sp)}}}
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            stories.forEach { story ->
+                Column(
+                    modifier = Modifier.width(76.dp).clickable { selected = story },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(66.dp).border(2.dp, Mint, CircleShape)
+                            .padding(4.dp).clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(Color(0xFF1D5A50), Color(0xFF182C39)))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (story.userId == myId) "Z" else "S",
+                            color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold
+                        )
+                        if (story.type == "video") {
+                            Box(Modifier.align(Alignment.BottomEnd).size(20.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
+                                Text("▶", color = Color.White, fontSize = 9.sp)
+                            }
+                        }
+                    }
+                    Text(if (story.userId == myId) "Story kamu" else "Story", color = Color.White, fontSize = 10.sp, maxLines = 1)
+                }
+            }
+        }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF294044)))
         Text("Buat Story teks",color=Color.White,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
         OutlinedTextField(value=draft,onValueChange={draft=it.take(2000)},label={Text("Tulis Story (maks. 2000)")},modifier=Modifier.fillMaxWidth(),minLines=2)
