@@ -3232,11 +3232,11 @@ private fun GlassNavigation(
                 )
         )
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect)
-            NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect)
-            NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect)
-            NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect)
-            NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect)
+            NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
         }
     }
 }
@@ -3247,7 +3247,8 @@ private fun NavigationItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     index: Int,
     selected: Int,
-    onSelect: (Int) -> Unit
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val active = selected == index
     val tint by animateColorAsState(
@@ -3263,8 +3264,8 @@ private fun NavigationItem(
         label = "navPressScale"
     )
     Column(
-        modifier = Modifier
-            .fillMaxWidth(0.2f)
+        modifier = modifier
+            .fillMaxWidth()
             .height(58.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(20.dp))
