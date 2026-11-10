@@ -1938,11 +1938,23 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                     try {
                         val payload = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId)
                             .put("message_type", "text").put("content", content)
-                        val result = supabaseCall("/rest/v1/messages?select=id", accessToken, "POST", payload, true)
+                        val result = supabaseCall("/rest/v1/messages?select=id,sender_id,content,deleted_at", accessToken, "POST", payload, true)
                         if (result.first in 200..299) {
-                            val messageId = org.json.JSONArray(result.second).optJSONObject(0)?.optString("id").orEmpty()
+                            val created = org.json.JSONArray(result.second).optJSONObject(0)
+                            val messageId = created?.optString("id").orEmpty()
+                            if (created != null && messageId.isNotBlank()) {
+                                messages = listOf(
+                                    GlobalMessage(
+                                        messageId,
+                                        created.optString("sender_id", myUserId),
+                                        created.optString("content", content),
+                                        isDeleted = !created.isNull("deleted_at")
+                                    )
+                                ) + messages.filterNot { it.id == messageId }
+                            }
                             notifyConversationMembers(accessToken, conversationId, messageId)
                             draft = ""
+                            status = "Pesan terkirim"
                         } else status = "Pesan gagal dikirim (" + result.first + ")."
                     } catch (_: Exception) { status = "Gagal mengirim pesan." }
                     finally { sending = false }
