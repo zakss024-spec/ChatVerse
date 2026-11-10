@@ -226,7 +226,7 @@ private fun AuthGate() {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var sessionLoading by remember { mutableStateOf(accessToken != null) }
-    var showWelcomeIntro by remember { mutableStateOf(false) }
+    var showWelcomeIntro by remember { mutableStateOf(accessToken != null) }
     var updateCheckFinished by remember { mutableStateOf(accessToken == null) }
     var availableUpdate by remember { mutableStateOf<ChatVerseUpdateInfo?>(null) }
     var updateDismissed by remember { mutableStateOf(false) }
