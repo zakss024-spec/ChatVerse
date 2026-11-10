@@ -4,6 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val chatVersePostHogApiKey = providers.gradleProperty("CHATVERSE_POSTHOG_API_KEY")
+    .orElse(providers.environmentVariable("CHATVERSE_POSTHOG_API_KEY"))
+    .getOrElse("")
+val chatVersePostHogHost = providers.gradleProperty("CHATVERSE_POSTHOG_HOST")
+    .orElse(providers.environmentVariable("CHATVERSE_POSTHOG_HOST"))
+    .getOrElse("")
+
 android {
     namespace = "com.chatverse.app"
     compileSdk = 35
@@ -17,6 +24,8 @@ android {
 
         buildConfigField("String", "SUPABASE_URL", "\"https://mpwlhlvxvvplzjtgasic.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_6QT8b1Ji75OaDQ9XCIiN7g_i1JHiZuC\"")
+        buildConfigField("String", "POSTHOG_API_KEY", "\"$chatVersePostHogApiKey\"")
+        buildConfigField("String", "POSTHOG_HOST", "\"$chatVersePostHogHost\"")
     }
 
     buildFeatures {
@@ -45,6 +54,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.posthog:posthog-android:3.+")
 
     testImplementation("junit:junit:4.13.2")
 
