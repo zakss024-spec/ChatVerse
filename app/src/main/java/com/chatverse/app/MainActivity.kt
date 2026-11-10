@@ -591,7 +591,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val themePrefs = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
         themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
-        themePrefs.getString("background_hex", null)?.let { parseAccentColor(it)?.let { color -> AppearanceState.background = color } }
+        if (!themePrefs.getBoolean("black_glass_default_v1", false)) {
+            AppearanceState.background = Color(0xFF000000)
+            themePrefs.edit()
+                .putString("background_hex", "#000000")
+                .putBoolean("black_glass_default_v1", true)
+                .apply()
+        } else {
+            themePrefs.getString("background_hex", null)?.let { parseAccentColor(it)?.let { color -> AppearanceState.background = color } }
+        }
         setContent {
             MaterialTheme(
                 colorScheme = androidx.compose.material3.darkColorScheme(
