@@ -538,10 +538,10 @@ private fun AuthGate() {
         }
     }
 }
-private val Night = Color(0xFF071014)
-private val Panel = Color(0xFF142329)
+private val Night = Color(0xFF000000)
+private val Panel = Color(0xFF101214)
 private object AppearanceState {
-    var background by mutableStateOf(Color(0xFF071014))
+    var background by mutableStateOf(Color(0xFF000000))
 }
 private fun applyBackgroundColor(context: Context, color: Color) {
     AppearanceState.background = color
@@ -2985,7 +2985,8 @@ private fun BackgroundThemeSection() {
     var customHex by remember { mutableStateOf(accentColorHex(AppearanceState.background)) }
     var feedback by remember { mutableStateOf("") }
     val presets = listOf(
-        "Black" to Color(0xFF050607),
+        "Pure Black" to Color(0xFF000000),
+        "Graphite" to Color(0xFF101214),
         "White" to Color(0xFFE9EEF0),
         "Gray" to Color(0xFF30363B),
         "Emerald" to Color(0xFF073B32),
@@ -3087,21 +3088,22 @@ private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .background(
         Brush.linearGradient(
             colors = listOf(
-                Color(0x42FFFFFF),
-                Color(0x20FFFFFF),
-                Color(0x12FFFFFF),
-                Color(0x30FFFFFF)
+                Color(0x38FFFFFF),
+                Color(0x1EFFFFFF),
+                Color(0x0DFFFFFF),
+                Color(0x24FFFFFF),
+                Color(0x16FFFFFF)
             )
         )
     )
     .border(
-        width = 1.dp,
+        width = 0.8.dp,
         brush = Brush.linearGradient(
             colors = listOf(
-                Color(0xEFFFFFFF),
-                Color(0x70FFFFFF),
-                Color(0x24FFFFFF),
-                Color(0xBFFFFFFF)
+                Color(0xCFFFFFFF),
+                Color(0x66FFFFFF),
+                Color(0x20FFFFFF),
+                Color(0x75FFFFFF)
             )
         ),
         shape = shape
