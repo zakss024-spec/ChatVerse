@@ -227,6 +227,13 @@ private fun AuthGate() {
     var message by remember { mutableStateOf("") }
     var sessionLoading by remember { mutableStateOf(accessToken != null) }
     var showWelcomeIntro by remember { mutableStateOf(accessToken != null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        context.getSharedPreferences("chatverse_push_state", Context.MODE_PRIVATE)
+            .edit().putBoolean("notification_permission_asked", true).apply()
+        if (!granted) message = "Notifikasi bisa diaktifkan kapan saja melalui pengaturan aplikasi."
+    }
     var updateCheckFinished by remember { mutableStateOf(accessToken == null) }
     var availableUpdate by remember { mutableStateOf<ChatVerseUpdateInfo?>(null) }
     var updateDismissed by remember { mutableStateOf(false) }
@@ -280,6 +287,7 @@ private fun AuthGate() {
             updateDismissed = false
         } else {
             updateCheckFinished = false
+            PushTokenManager.syncWithSupabase(context, accessToken.orEmpty())
             val update = checkChatVerseUpdate()
             availableUpdate = update
             val dismissedVersion = context.getSharedPreferences("chatverse_update_state", Context.MODE_PRIVATE)
@@ -330,9 +338,25 @@ private fun AuthGate() {
             return
         }
         if (showWelcomeIntro) {
-            WelcomeIntroScreen(onFinished = { showWelcomeIntro = false })
+            WelcomeIntroScreen(onFinished = {
+                showWelcomeIntro = false
+                val prefs = context.getSharedPreferences("chatverse_push_state", Context.MODE_PRIVATE)
+                val alreadyAsked = prefs.getBoolean("notification_permission_asked", false)
+                if (!alreadyAsked && android.os.Build.VERSION.SDK_INT >= 33 &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                } else if (!alreadyAsked) {
+                    prefs.edit().putBoolean("notification_permission_asked", true).apply()
+                }
+            })
         } else {
             ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    PushTokenManager.unregisterFromSupabase(context, accessToken.orEmpty())
+                }
                 ChatVerseAnalytics.reset()
                 sessionStore.clear()
                 restoredSession = null
