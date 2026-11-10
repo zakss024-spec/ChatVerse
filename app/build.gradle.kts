@@ -4,6 +4,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Activate Firebase configuration only after the user adds app/google-services.json.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 val chatVersePostHogApiKey = providers.gradleProperty("CHATVERSE_POSTHOG_API_KEY")
     .orElse(providers.environmentVariable("CHATVERSE_POSTHOG_API_KEY"))
     .getOrElse("")
@@ -55,6 +60,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.posthog:posthog-android:3.+")
+    implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
+    implementation("com.google.firebase:firebase-messaging")
 
     testImplementation("junit:junit:4.13.2")
 
