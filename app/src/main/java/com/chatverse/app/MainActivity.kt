@@ -2824,7 +2824,7 @@ private fun CallsScreen(accessToken: String) {
         Text("Panggilan suara dan video", color = Muted, fontSize = 12.sp)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CallActionTile("Audio", Icons.Rounded.Call, Modifier.weight(1f))
-            CallActionTile("Video", Icons.Rounded.VideoCall, Modifier.weight(1f))
+            CallActionTile("Video", Icons.Rounded.Call, Modifier.weight(1f))
         }
         Text("Recent", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         when {
@@ -3265,7 +3265,7 @@ private fun NavigationItem(
     )
     Column(
         modifier = Modifier
-            .weight(1f)
+            .fillMaxWidth(0.2f)
             .height(58.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(20.dp))
