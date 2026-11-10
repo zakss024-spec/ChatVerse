@@ -183,7 +183,7 @@ private suspend fun openChatMedia(context: Context, accessToken: String, path: S
         }
     }
 
-private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null): Pair<Int, String> =
+private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null, returnRepresentation: Boolean = false): Pair<Int, String> =
     withContext(Dispatchers.IO) {
         val builder = Request.Builder().url(BuildConfig.SUPABASE_URL + path)
             .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
@@ -191,7 +191,10 @@ private suspend fun supabaseCall(path: String, token: String, method: String = "
             .addHeader("Content-Type", "application/json")
         when (method) {
             "PATCH" -> builder.patch((payload ?: JSONObject()).toString().toRequestBody(jsonType))
-            "POST" -> builder.post((payload ?: JSONObject()).toString().toRequestBody(jsonType))
+            "POST" -> {
+                if (returnRepresentation) builder.addHeader("Prefer", "return=representation")
+                builder.post((payload ?: JSONObject()).toString().toRequestBody(jsonType))
+            }
             "UPSERT" -> {
                 builder.addHeader("Prefer", "resolution=merge-duplicates,return=minimal")
                 builder.post((payload ?: JSONObject()).toString().toRequestBody(jsonType))
@@ -203,6 +206,21 @@ private suspend fun supabaseCall(path: String, token: String, method: String = "
             response.code to response.body?.string().orEmpty()
         }
     }
+
+private suspend fun notifyConversationMembers(accessToken: String, conversationId: String, messageId: String) {
+    if (accessToken.isBlank() || conversationId.isBlank() || messageId.isBlank()) return
+    runCatching {
+        val payload = JSONObject()
+            .put("conversation_id", conversationId)
+            .put("message_id", messageId)
+        val result = supabaseCall("/functions/v1/send-chat-notification", accessToken, "POST", payload)
+        if (result.first !in 200..299) {
+            android.util.Log.w("ChatVerseFCM", "Push request failed: HTTP ${result.first}")
+        }
+    }.onFailure {
+        android.util.Log.w("ChatVerseFCM", "Push request unavailable", it)
+    }
+}
 
 @Composable
 private fun BrandMark(size: androidx.compose.ui.unit.Dp = 64.dp) {
@@ -895,8 +913,10 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                         val body = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId)
                             .put("message_type", type).put("content", uploaded.name).put("media_path", uploaded.path)
                             .put("media_mime_type", uploaded.mimeType).put("media_size_bytes", uploaded.size)
-                        val sent = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
+                        val sent = supabaseCall("/rest/v1/messages?select=id", accessToken, "POST", body, true)
                         if (sent.first in 200..299) {
+                            val messageId = org.json.JSONArray(sent.second).optJSONObject(0)?.optString("id").orEmpty()
+                            notifyConversationMembers(accessToken, conversationId, messageId)
                             status = "Lampiran berhasil dikirim."
                         } else {
                             val cleaned = deleteUploadedChatMedia(accessToken, uploaded.path)
@@ -1141,8 +1161,10 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                         .put("message_type", "text")
                         .put("content", content)
                     if (!replyId.isNullOrBlank()) body.put("reply_to_message_id", replyId)
-                    val response = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
+                    val response = supabaseCall("/rest/v1/messages?select=id", accessToken, "POST", body, true)
                     if (response.first in 200..299) {
+                        val messageId = org.json.JSONArray(response.second).optJSONObject(0)?.optString("id").orEmpty()
+                        notifyConversationMembers(accessToken, conversationId, messageId)
                         ChatVerseAnalytics.capture("chat_message_sent")
                         draft = ""
                         replyingTo = null
@@ -1866,8 +1888,12 @@ private fun GroupChatScreen(accessToken: String, conversationId: String, title: 
                     try {
                         val payload = JSONObject().put("conversation_id", conversationId).put("sender_id", myUserId)
                             .put("message_type", "text").put("content", content)
-                        val result = supabaseCall("/rest/v1/messages", accessToken, "POST", payload)
-                        if (result.first in 200..299) draft = "" else status = "Pesan gagal dikirim (" + result.first + ")."
+                        val result = supabaseCall("/rest/v1/messages?select=id", accessToken, "POST", payload, true)
+                        if (result.first in 200..299) {
+                            val messageId = org.json.JSONArray(result.second).optJSONObject(0)?.optString("id").orEmpty()
+                            notifyConversationMembers(accessToken, conversationId, messageId)
+                            draft = ""
+                        } else status = "Pesan gagal dikirim (" + result.first + ")."
                     } catch (_: Exception) { status = "Gagal mengirim pesan." }
                     finally { sending = false }
                 }
