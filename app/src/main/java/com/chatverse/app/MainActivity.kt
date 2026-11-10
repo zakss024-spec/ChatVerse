@@ -49,6 +49,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -3115,19 +3117,40 @@ private fun GlassNavigation(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .glassPanel(RoundedCornerShape(28.dp))
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+    BoxWithConstraints(
+        modifier = modifier.fillMaxWidth().glassPanel(RoundedCornerShape(30.dp)).padding(6.dp)
     ) {
-        NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect)
-        NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect)
-        NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect)
-        NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect)
-        NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect)
+        val itemWidth = maxWidth / 5
+        val indicatorOffset by animateDpAsState(
+            targetValue = itemWidth * selected,
+            animationSpec = tween(durationMillis = 460, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            label = "glassNavIndicator"
+        )
+        Box(
+            Modifier
+                .offset(x = indicatorOffset)
+                .width(itemWidth)
+                .height(58.dp)
+                .padding(horizontal = 3.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xDFFFFFFF), Color(0x72FFFFFF), Color(0x35FFFFFF), Color(0x78FFFFFF))
+                    )
+                )
+                .border(
+                    0.8.dp,
+                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.88f), Color.White.copy(alpha = 0.24f))),
+                    RoundedCornerShape(22.dp)
+                )
+        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect)
+            NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect)
+            NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect)
+            NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect)
+            NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect)
+        }
     }
 }
 
@@ -3140,34 +3163,30 @@ private fun NavigationItem(
     onSelect: (Int) -> Unit
 ) {
     val active = selected == index
+    val tint by animateColorAsState(
+        targetValue = if (active) Color(0xFF087D63) else Color(0xFFD1D5DB),
+        animationSpec = tween(360),
+        label = "navTint"
+    )
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.94f else 1f,
-        animationSpec = spring(),
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.78f),
         label = "navPressScale"
     )
-    val tint by animateColorAsState(if (active) Color(0xFF087D63) else Muted, label = "navTint")
-    val horizontalPadding by animateDpAsState(if (active) 17.dp else 12.dp, label = "navPadding")
-
-    Row(
+    Column(
         modifier = Modifier
+            .weight(1f)
+            .height(58.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(18.dp))
-            .then(
-                if (active) Modifier
-                    .background(Brush.linearGradient(listOf(Color(0xDFFFFFFF), Color(0x88FFFFFF), Color(0x4DFFFFFF))))
-                    .border(1.dp, Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
-                else Modifier.background(Color.Transparent)
-            )
-            .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) }
-            .padding(horizontal = horizontalPadding, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(19.dp))
-        if (active) {
-            Spacer(Modifier.width(7.dp))
-            Text(label, color = tint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        }
+        Spacer(Modifier.height(3.dp))
+        Text(label, color = tint, fontSize = 9.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
     }
 }
