@@ -333,6 +333,7 @@ private fun AuthGate() {
             WelcomeIntroScreen(onFinished = { showWelcomeIntro = false })
         } else {
             ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
+                ChatVerseAnalytics.reset()
                 sessionStore.clear()
                 restoredSession = null
                 accessToken = null
@@ -449,6 +450,7 @@ private fun AuthGate() {
                                                     restoredSession = StoredSession(token, refreshToken)
                                                     accessToken = token
                                                     showWelcomeIntro = true
+                                                    ChatVerseAnalytics.capture(if (isRegister) "account_registered" else "account_login_succeeded")
                                                 } catch (_: Exception) {
                                                     message = "Sesi tidak dapat disimpan dengan aman. Coba lagi."
                                                     return@runOnUiThread
@@ -457,6 +459,7 @@ private fun AuthGate() {
                                                 confirmPassword = ""
                                                 message = ""
                                             } else {
+                                                ChatVerseAnalytics.capture("auth_flow_failed", mapOf("flow" to if (isRegister) "register" else "login"))
                                                 message = result?.optString("error")?.takeIf { it.isNotBlank() }
                                                     ?: "Autentikasi gagal. Periksa username dan password."
                                             }
@@ -1116,6 +1119,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                     if (!replyId.isNullOrBlank()) body.put("reply_to_message_id", replyId)
                     val response = supabaseCall("/rest/v1/messages", accessToken, "POST", body)
                     if (response.first in 200..299) {
+                        ChatVerseAnalytics.capture("chat_message_sent")
                         draft = ""
                         replyingTo = null
                         supabaseCall("/rest/v1/conversation_typing?conversation_id=eq.$conversationId&user_id=eq.$myUserId", accessToken, "PATCH", JSONObject().put("is_typing", false).put("updated_at", java.time.Instant.now().toString()))
@@ -2134,7 +2138,7 @@ private fun UpdatesScreen(accessToken:String) {
         OutlinedTextField(value=draft,onValueChange={draft=it.take(2000)},label={Text("Tulis Story (maks. 2000)")},modifier=Modifier.fillMaxWidth(),minLines=2)
         OutlinedTextField(value=caption,onValueChange={caption=it.take(500)},label={Text("Caption opsional")},modifier=Modifier.fillMaxWidth())
         TextButton(onClick={audience=if(audience=="everyone")"close_friends" else "everyone"}){Text(if(audience=="everyone")"Audiens: Semua pengguna" else "Audiens: Close Friends",color=Cyan)}
-        Button(enabled=draft.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth(),onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/stories",accessToken,"POST",JSONObject().put("user_id",myId).put("story_type","text").put("text_content",draft.trim()).put("caption",caption.trim()).put("audience",audience));if(r.first in 200..299){draft="";caption="";reload();status="Story diterbitkan; berlaku 24 jam."}else status="Gagal membuat Story (${r.first})."}finally{busy=false}}}){Text(if(busy)"Menerbitkan..." else "Terbitkan Story")}
+        Button(enabled=draft.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth(),onClick={scope.launch{busy=true;try{val r=supabaseCall("/rest/v1/stories",accessToken,"POST",JSONObject().put("user_id",myId).put("story_type","text").put("text_content",draft.trim()).put("caption",caption.trim()).put("audience",audience));if(r.first in 200..299){ChatVerseAnalytics.capture("story_published");draft="";caption="";reload();status="Story diterbitkan; berlaku 24 jam."}else status="Gagal membuat Story (${r.first})."}finally{busy=false}}}){Text(if(busy)"Menerbitkan..." else "Terbitkan Story")}
         Text("Atau unggah media (maks. 20 MB)",color=Muted,fontSize=11.sp)
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             Button(enabled=!busy,modifier=Modifier.weight(1f),onClick={imagePicker.launch("image/*")}) { Text("Pilih foto") }
@@ -2481,7 +2485,7 @@ private fun CommunitiesScreen(accessToken: String) {
                             try {
                                 val payload = JSONObject().put("channel_id", channel.id).put("author_id", myUserId).put("content", draft.trim())
                                 val result = supabaseCall("/rest/v1/community_posts", accessToken, "POST", payload)
-                                if (result.first in 200..299) { draft = ""; refreshPosts(channel.id) }
+                                if (result.first in 200..299) { ChatVerseAnalytics.capture("community_post_created"); draft = ""; refreshPosts(channel.id) }
                                 else status = "Pesan tidak terkirim (${result.first})."
                             } finally { busy = false }
                         }
