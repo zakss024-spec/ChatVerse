@@ -3008,9 +3008,10 @@ private fun NavigationItem(
         modifier = Modifier
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(18.dp))
-            .background(
-                if (active) Brush.linearGradient(listOf(Color(0xAA68E5C1), Color(0x553D8E83)))
-                else Color.Transparent
+            .then(
+                if (active) Modifier.background(
+                    Brush.linearGradient(listOf(Color(0xAA68E5C1), Color(0x553D8E83)))
+                ) else Modifier.background(Color.Transparent)
             )
             .border(
                 if (active) 1.dp else 0.dp,
