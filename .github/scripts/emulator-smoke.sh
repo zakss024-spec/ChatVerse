@@ -42,15 +42,9 @@ if grep -E "FATAL EXCEPTION:|ANR in com.chatverse.app|Process: com.chatverse.app
 fi
 
 sleep 8
-adb shell screencap -p /sdcard/chatverse-preview.png
+adb exec-out screencap -p > chatverse-preview.png
 capture_status=$?
-if [ "$capture_status" -ne 0 ]; then
-  echo "Could not capture emulator screenshot."
-  exit "$capture_status"
-fi
-adb pull /sdcard/chatverse-preview.png chatverse-preview.png
-pull_status=$?
-if [ "$pull_status" -ne 0 ]; then
-  echo "Could not retrieve emulator screenshot."
-  exit "$pull_status"
+if [ "$capture_status" -ne 0 ] || [ ! -s chatverse-preview.png ]; then
+  echo "Could not capture emulator screenshot through adb exec-out."
+  exit 1
 fi
