@@ -336,6 +336,23 @@ private fun AuthGate() {
             }
             return
         }
+        if (showWelcomeIntro) {
+            WelcomeIntroScreen(onFinished = {
+                showWelcomeIntro = false
+                val prefs = context.getSharedPreferences("chatverse_push_state", Context.MODE_PRIVATE)
+                val alreadyAsked = prefs.getBoolean("notification_permission_asked", false)
+                if (!alreadyAsked && android.os.Build.VERSION.SDK_INT >= 33 &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                } else if (!alreadyAsked) {
+                    prefs.edit().putBoolean("notification_permission_asked", true).apply()
+                }
+            })
+            return
+        }
         val pendingUpdate = availableUpdate
         if (pendingUpdate != null && !updateDismissed) {
             ChatVerseUpdateDialog(
@@ -361,35 +378,18 @@ private fun AuthGate() {
             )
             return
         }
-        if (showWelcomeIntro) {
-            WelcomeIntroScreen(onFinished = {
-                showWelcomeIntro = false
-                val prefs = context.getSharedPreferences("chatverse_push_state", Context.MODE_PRIVATE)
-                val alreadyAsked = prefs.getBoolean("notification_permission_asked", false)
-                if (!alreadyAsked && android.os.Build.VERSION.SDK_INT >= 33 &&
-                    androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, android.Manifest.permission.POST_NOTIFICATIONS
-                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                ) {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                } else if (!alreadyAsked) {
-                    prefs.edit().putBoolean("notification_permission_asked", true).apply()
-                }
-            })
-        } else {
-            ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    PushTokenManager.unregisterFromSupabase(context, accessToken.orEmpty())
-                }
-                ChatVerseAnalytics.reset()
-                sessionStore.clear()
-                restoredSession = null
-                accessToken = null
-                showWelcomeIntro = false
-                availableUpdate = null
-                updateDismissed = false
-            })
-        }
+        ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                PushTokenManager.unregisterFromSupabase(context, accessToken.orEmpty())
+            }
+            ChatVerseAnalytics.reset()
+            sessionStore.clear()
+            restoredSession = null
+            accessToken = null
+            showWelcomeIntro = false
+            availableUpdate = null
+            updateDismissed = false
+        })
         return
     }
 
