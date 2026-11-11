@@ -2798,7 +2798,7 @@ private fun CallsScreen(accessToken: String) {
             if (user.first in 200..299) {
                 myUserId = JSONObject(user.second).optString("id")
                 val result = supabaseCall(
-                    "/rest/v1/call_sessions?select=id,call_type,status,caller_id,callee_id,created_at&or=(caller_id.eq.\${myUserId},callee_id.eq.\${myUserId})&order=created_at.desc&limit=40",
+                    "/rest/v1/call_sessions?select=id,call_type,status,caller_id,callee_id,created_at&or=(caller_id.eq.${myUserId},callee_id.eq.${myUserId})&order=created_at.desc&limit=40",
                     accessToken
                 )
                 if (result.first in 200..299) {
@@ -2810,7 +2810,7 @@ private fun CallsScreen(accessToken: String) {
                             row.optString("callee_id"), row.optString("created_at"))
                     }
                     status = ""
-                } else status = "Riwayat panggilan belum dapat dimuat (\${result.first})."
+                } else status = "Riwayat panggilan belum dapat dimuat (${result.first})."
             } else status = "Sesi perlu diperbarui."
         } catch (_: Exception) {
             status = "Koneksi bermasalah. Coba muat ulang."
