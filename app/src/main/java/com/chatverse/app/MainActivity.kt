@@ -104,6 +104,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -682,7 +683,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 onSelect = { selectedTab = it },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
+                    .padding(bottom = 26.dp)
             )
         }
     }
@@ -3204,8 +3205,14 @@ private fun GlassNavigation(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val capsuleShape = RoundedCornerShape(34.dp)
     BoxWithConstraints(
-        modifier = modifier.fillMaxWidth().glassPanel(RoundedCornerShape(30.dp)).padding(6.dp)
+        modifier = modifier
+            .fillMaxWidth(0.92f)
+            .widthIn(max = 430.dp)
+            .shadow(elevation = 26.dp, shape = capsuleShape, clip = false)
+            .glassPanel(capsuleShape)
+            .padding(6.dp)
     ) {
         val itemWidth = maxWidth / 5
         val indicatorOffset by animateDpAsState(
@@ -3219,7 +3226,7 @@ private fun GlassNavigation(
                 .width(itemWidth)
                 .height(58.dp)
                 .padding(horizontal = 3.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(28.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(Color(0xDFFFFFFF), Color(0x72FFFFFF), Color(0x35FFFFFF), Color(0x78FFFFFF))
@@ -3266,9 +3273,9 @@ private fun NavigationItem(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(60.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(26.dp))
             .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
