@@ -40,7 +40,7 @@ if [ "$booted" != "1" ]; then
   exit 1
 fi
 
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb_retry adb install -r app/build/outputs/apk/debug/app-debug.apk
 install_status=$?
 if [ "$install_status" -ne 0 ]; then
   echo "APK installation failed with exit code $install_status"
@@ -48,8 +48,8 @@ if [ "$install_status" -ne 0 ]; then
   exit "$install_status"
 fi
 
-adb shell am force-stop com.chatverse.app
-adb shell am start -W -n com.chatverse.app/.MainActivity
+adb_retry adb shell am force-stop com.chatverse.app
+adb_retry adb shell am start -W -n com.chatverse.app/.MainActivity
 start_status=$?
 if [ "$start_status" -ne 0 ]; then
   echo "Activity launch command failed with exit code $start_status"
@@ -80,7 +80,7 @@ if grep -E "FATAL EXCEPTION:|ANR in com.chatverse.app|Process: com.chatverse.app
 fi
 
 sleep 8
-adb exec-out screencap -p > chatverse-preview.png
+adb_retry adb exec-out screencap -p > chatverse-preview.png
 capture_status=$?
 if [ "$capture_status" -ne 0 ] || [ ! -s chatverse-preview.png ]; then
   echo "Could not capture emulator screenshot through adb exec-out."
