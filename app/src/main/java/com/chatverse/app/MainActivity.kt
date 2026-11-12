@@ -788,9 +788,52 @@ private fun ChatsHubScreen(accessToken: String) {
         contentPadding = PaddingValues(bottom = 14.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-                Text("Pesan pribadi dan percakapan terbaru", color = Muted, fontSize = 12.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Cari teman", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Cari username ChatVerse...") }
+                )
+                val searchInteractionSource = remember { MutableInteractionSource() }
+                val searchPressed by searchInteractionSource.collectIsPressedAsState()
+                val searchScale by animateFloatAsState(
+                    targetValue = if (searchPressed) 0.96f else 1f,
+                    animationSpec = spring(),
+                    label = "searchButtonPress"
+                )
+                Button(
+                    onClick = {
+                        searching = true
+                        status = "Mencari pengguna..."
+                        scope.launch {
+                            try {
+                                val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+                                val response = supabaseCall("/rest/v1/profiles?username=ilike.*$encoded*&select=id,username,display_name&limit=20", accessToken)
+                                if (response.first in 200..299) {
+                                    val array = org.json.JSONArray(response.second)
+                                    val found = mutableListOf<SearchProfile>()
+                                    for (i in 0 until array.length()) {
+                                        val row = array.getJSONObject(i)
+                                        found.add(SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name")))
+                                    }
+                                    results = found
+                                    status = if (found.isEmpty()) "Pengguna tidak ditemukan." else "Pilih pengguna untuk membuka chat."
+                                } else status = "Pencarian gagal. Coba lagi."
+                            } catch (_: Exception) {
+                                status = "Tidak dapat mencari pengguna. Periksa internet."
+                            } finally {
+                                searching = false
+                            }
+                        }
+                    },
+                    enabled = query.length >= 2 && !searching,
+                    interactionSource = searchInteractionSource,
+                    modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = searchScale, scaleY = searchScale)
+                ) { Text(if (searching) "Mencari..." else "Cari pengguna") }
+                Text(status, color = Muted, fontSize = 12.sp)
             }
         }
         item {
@@ -861,58 +904,7 @@ private fun ChatsHubScreen(accessToken: String) {
                 Spacer(Modifier.height(5.dp))
                 Text("New message", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text("Cari username...") }
-                )
-                val searchInteractionSource = remember { MutableInteractionSource() }
-                val searchPressed by searchInteractionSource.collectIsPressedAsState()
-                val searchScale by animateFloatAsState(
-                    targetValue = if (searchPressed) 0.96f else 1f,
-                    animationSpec = spring(),
-                    label = "searchButtonPress"
-                )
-                Button(
-                    onClick = {
-                        searching = true
-                        status = "Mencari pengguna..."
-                        scope.launch {
-                            try {
-                                val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-                                val response = supabaseCall("/rest/v1/profiles?username=ilike.*$encoded*&select=id,username,display_name&limit=20", accessToken)
-                                if (response.first in 200..299) {
-                                    val array = org.json.JSONArray(response.second)
-                                    val found = mutableListOf<SearchProfile>()
-                                    for (i in 0 until array.length()) {
-                                        val row = array.getJSONObject(i)
-                                        found.add(SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name")))
-                                    }
-                                    results = found
-                                    status = if (found.isEmpty()) "Pengguna tidak ditemukan." else "Pilih pengguna untuk membuka chat."
-                                } else status = "Pencarian gagal. Coba lagi."
-                            } catch (_: Exception) {
-                                status = "Tidak dapat mencari pengguna. Periksa internet."
-                            } finally {
-                                searching = false
-                            }
-                        }
-                    },
-                    enabled = query.length >= 2 && !searching,
-                    interactionSource = searchInteractionSource,
-                    modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = searchScale, scaleY = searchScale)
-                ) { Text(if (searching) "Searching..." else "Search users") }
-                Text(status, color = Muted, fontSize = 12.sp)
-            }
-        }
-        items(results, key = { it.id }) { profile ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Panel),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth().clickable {
-                    scope.launch {
-                        try {
+                    value = que           try {
                             val body = JSONObject().put("p_other_user", profile.id)
                             val response = supabaseCall("/rest/v1/rpc/open_direct_conversation", accessToken, "POST", body)
                             if (response.first in 200..299) {
@@ -2964,7 +2956,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Spacer(Modifier.height(12.dp))
     BackgroundThemeSection()
     Spacer(Modifier.height(12.dp))
-    FeatureCard("Developer Contact", "zakikuk")
+    FeatureCard("Developer Contact", "ZakssX • Official ChatVerse Developer • @ZakssX")
     Spacer(Modifier.height(12.dp))
     AnimatedActionButton(
         label = "Sign out",
