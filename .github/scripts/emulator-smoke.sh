@@ -26,7 +26,7 @@ trap capture_diagnostics EXIT
 adb_retry adb wait-for-device
 booted=""
 for attempt in $(seq 1 300); do
-  booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r' || true)"
+  booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
   [ "$booted" = "1" ] && break
   # A device can reconnect while system_server is starting; tolerate that.
   if [ $((attempt % 15)) -eq 0 ]; then
