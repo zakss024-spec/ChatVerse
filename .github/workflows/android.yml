@@ -72,8 +72,8 @@ jobs:
           # The previous 4 GB / 4-core AVD stalled during framework startup and
           # eventually returned Broken pipe from system services.
           emulator-boot-timeout: 1200
-          ram-size: 2048M
-          heap-size: 512M
+          ram-size: 3072M
+          heap-size: 768M
           cores: 2
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect
           disable-animations: true
