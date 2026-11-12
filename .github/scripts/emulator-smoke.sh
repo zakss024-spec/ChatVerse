@@ -40,12 +40,52 @@ if [ "$booted" != "1" ]; then
   exit 1
 fi
 
-adb_retry adb install -r app/build/outputs/apk/debug/app-debug.apk
-install_status=$?
-if [ "$install_status" -ne 0 ]; then
-  echo "APK installation failed with exit code $install_status"
+# sys.boot_completed can become 1 before system_server is healthy. Wait until
+# PackageManager and ActivityManager answer repeatedly before installing.
+wait_for_system_services() {
+  local stable=0
+  for attempt in $(seq 1 60); do
+    local package_state activity_state
+    package_state="$(adb shell service check package 2>/dev/null | tr -d '\\r' || true)"
+    activity_state="$(adb shell service check activity 2>/dev/null | tr -d '\\r' || true)"
+    if [[ "$package_state" == *"found"* && "$activity_state" == *"found"* ]]; then
+      stable=$((stable + 1))
+      if [ "$stable" -ge 3 ]; then
+        echo "Android PackageManager and ActivityManager are stable."
+        return 0
+      fi
+    else
+      stable=0
+    fi
+    echo "Waiting for Android system services (attempt $attempt/60)..."
+    sleep 5
+  done
+  echo "Android system services did not become stable."
   capture_diagnostics
-  exit "$install_status"
+  return 1
+}
+
+wait_for_system_services || exit 1
+
+install_status=1
+for install_attempt in $(seq 1 3); do
+  if adb install -r app/build/outputs/apk/debug/app-debug.apk; then
+    install_status=0
+    break
+  fi
+  echo "APK install attempt $install_attempt failed; waiting for system services."
+  wait_for_system_services || true
+done
+if [ "$install_status" -ne 0 ]; then
+  echo "APK installation failed after 3 attempts."
+  capture_diagnostics
+  exit 1
+fi
+
+if ! adb shell pm path com.chatverse.app | grep -q "package:"; then
+  echo "PackageManager cannot confirm the installed ChatVerse package."
+  capture_diagnostics
+  exit 1
 fi
 
 adb_retry adb shell am force-stop com.chatverse.app
