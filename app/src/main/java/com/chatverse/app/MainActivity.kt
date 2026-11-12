@@ -1184,7 +1184,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         }
         Spacer(Modifier.height(6.dp))
     }
-    Row(Modifier.fillMaxWidth().selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { mediaPicker.launch(arrayOf("image/jpeg", "image/png", "image/webp", "video/mp4", "application/pdf")) }, enabled = !uploadingMedia && !sending) {
             Icon(Icons.Rounded.Add, contentDescription = "Lampirkan file", tint = Mint)
         }
@@ -3242,7 +3242,7 @@ private fun GlassNavigation(
                     RoundedCornerShape(22.dp)
                 )
         )
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
             NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
             NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
             NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
