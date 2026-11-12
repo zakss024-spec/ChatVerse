@@ -2,11 +2,28 @@
 # Run as one script file so compound shell blocks are not split by the emulator action.
 set +e
 
+# Always preserve app/system logs, including when an adb command fails midway.
+capture_diagnostics() {
+  adb logcat -b all -d -v threadtime > emulator-logcat.txt 2>&1 || true
+}
+trap capture_diagnostics EXIT
+
+adb wait-for-device
+for attempt in $(seq 1 90); do
+  booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r' || true)"
+  [ "$booted" = "1" ] && break
+  sleep 2
+done
+if [ "$booted" != "1" ]; then
+  echo "Android emulator did not finish booting."
+  exit 1
+fi
+
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 install_status=$?
 if [ "$install_status" -ne 0 ]; then
   echo "APK installation failed with exit code $install_status"
-  adb logcat -d -t 1200 > emulator-logcat.txt
+  capture_diagnostics
   exit "$install_status"
 fi
 
@@ -15,7 +32,7 @@ adb shell am start -W -n com.chatverse.app/.MainActivity
 start_status=$?
 if [ "$start_status" -ne 0 ]; then
   echo "Activity launch command failed with exit code $start_status"
-  adb logcat -d -t 2000 > emulator-logcat.txt
+  capture_diagnostics
   exit "$start_status"
 fi
 
@@ -28,7 +45,7 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 
-adb logcat -d -t 3000 > emulator-logcat.txt
+capture_diagnostics
 if [ -z "$app_pid" ]; then
   echo "ChatVerse process was not observed after launch."
   echo "System ANRs are diagnostic only; inspect app-specific fatal errors below."
