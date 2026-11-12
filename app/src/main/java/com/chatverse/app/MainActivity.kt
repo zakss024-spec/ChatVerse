@@ -652,14 +652,13 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 92.dp)
+                    .padding(start = 0.dp, end = 0.dp, top = 0.dp, bottom = 76.dp)
             ) {
-                Spacer(Modifier.height(22.dp))
                 Header(onProfileClick = { selectedTab = 4 })
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
                 AnimatedContent(
                     targetState = selectedTab,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
                     transitionSpec = {
                         (androidx.compose.animation.slideInHorizontally(
                             animationSpec = tween(280),
@@ -687,7 +686,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 onSelect = { selectedTab = it },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 26.dp)
+                    .padding(bottom = 0.dp)
             )
         }
     }
@@ -696,24 +695,29 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 @Composable
 private fun Header(onProfileClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
+            .background(Color(0xFF075E54))
+            .padding(start = 18.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BrandMark(48.dp)
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("ChatVerse", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
-                Text("Beyond Messaging", color = Mint, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.SemiBold)
-            }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BrandMark(30.dp)
+            Text(
+                "ChatVerse",
+                color = Color.White,
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.35).sp
+            )
         }
         Box(
-            modifier = Modifier.size(46.dp).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(0xFF244B4C), Color(0xFF13272E))))
+            modifier = Modifier.size(38.dp).clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.16f))
                 .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
-            Text("Z", color = Mint, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Z", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
 }
@@ -3209,40 +3213,16 @@ private fun GlassNavigation(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val capsuleShape = RoundedCornerShape(34.dp)
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxWidth(0.92f)
-            .widthIn(max = 430.dp)
-            .shadow(elevation = 26.dp, shape = capsuleShape, clip = false)
-            .glassPanel(capsuleShape)
-            .padding(6.dp)
+    Row(
+        modifier = modifier.fillMaxWidth()
+            .background(Panel)
+            .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.10f)),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val itemWidth = maxWidth / 5
-        val indicatorOffset by animateDpAsState(
-            targetValue = itemWidth * selected,
-            animationSpec = tween(durationMillis = 460, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-            label = "glassNavIndicator"
-        )
-        Box(
-            Modifier
-                .offset(x = indicatorOffset)
-                .width(itemWidth)
-                .height(58.dp)
-                .padding(horizontal = 3.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xDFFFFFFF), Color(0x72FFFFFF), Color(0x35FFFFFF), Color(0x78FFFFFF))
-                    )
-                )
-                .border(
-                    0.8.dp,
-                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.88f), Color.White.copy(alpha = 0.24f))),
-                    RoundedCornerShape(22.dp)
-                )
-        )
-        Row(Modifier.fillMaxWidth().semantics { selectableGroup() }, verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().semantics { selectableGroup() }.padding(vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
             NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
             NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
@@ -3263,8 +3243,8 @@ private fun NavigationItem(
 ) {
     val active = selected == index
     val tint by animateColorAsState(
-        targetValue = if (active) Color(0xFF087D63) else Color(0xFFD1D5DB),
-        animationSpec = tween(360),
+        targetValue = if (active) Color(0xFF25D366) else Color(0xFF9AA6A3),
+        animationSpec = tween(220),
         label = "navTint"
     )
     val interactionSource = remember { MutableInteractionSource() }
@@ -3277,9 +3257,9 @@ private fun NavigationItem(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(60.dp)
+            .height(58.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(12.dp))
             .semantics {
                 this.selected = active
             }
@@ -3287,8 +3267,8 @@ private fun NavigationItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(19.dp))
-        Spacer(Modifier.height(3.dp))
-        Text(label, color = tint, fontSize = 9.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(21.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(label, color = tint, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
     }
 }
