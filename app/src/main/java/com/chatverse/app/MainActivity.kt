@@ -899,23 +899,26 @@ private fun ChatsHubScreen(accessToken: String) {
                 FeatureCard("Belum ada chat pribadi", "Cari username di bawah untuk memulai percakapan.")
             }
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Spacer(Modifier.height(5.dp))
-                Text("New message", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    value = que           try {
-                            val body = JSONObject().put("p_other_user", profile.id)
-                            val response = supabaseCall("/rest/v1/rpc/open_direct_conversation", accessToken, "POST", body)
-                            if (response.first in 200..299) {
-                                activeId = response.second.trim().trim('"')
-                                activeTitle = profile.displayName.ifBlank { "@" + profile.username }
-                            } else status = "Tidak dapat membuka chat. Pastikan pengguna tidak memblokirmu."
-                        } catch (_: Exception) {
-                            status = "Gagal membuka chat. Periksa koneksi."
+        items(results, key = { it.id }) { profile ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .glassPanel(RoundedCornerShape(14.dp))
+                    .clickable {
+                        scope.launch {
+                            try {
+                                val body = JSONObject().put("p_other_user", profile.id)
+                                val response = supabaseCall("/rest/v1/rpc/open_direct_conversation", accessToken, "POST", body)
+                                if (response.first in 200..299) {
+                                    activeId = response.second.trim().trim('"')
+                                    activeTitle = profile.displayName.ifBlank { "@" + profile.username }
+                                } else status = "Tidak dapat membuka chat. Pastikan pengguna tidak memblokirmu."
+                            } catch (_: Exception) {
+                                status = "Gagal membuka chat. Periksa koneksi."
+                            }
                         }
                     }
-                }
             ) {
                 Column(Modifier.padding(15.dp)) {
                     Text(profile.displayName.ifBlank { profile.username }, color = Color.White, fontWeight = FontWeight.SemiBold)
