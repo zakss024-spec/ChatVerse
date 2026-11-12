@@ -105,6 +105,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selectableGroup
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -1180,7 +1184,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         }
         Spacer(Modifier.height(6.dp))
     }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { mediaPicker.launch(arrayOf("image/jpeg", "image/png", "image/webp", "video/mp4", "application/pdf")) }, enabled = !uploadingMedia && !sending) {
             Icon(Icons.Rounded.Add, contentDescription = "Lampirkan file", tint = Mint)
         }
@@ -3276,7 +3280,10 @@ private fun NavigationItem(
             .height(60.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(26.dp))
-            .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) },
+            .semantics {
+                this.selected = active
+            }
+            .clickable(interactionSource = interactionSource, indication = null, role = Role.Tab) { onSelect(index) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
