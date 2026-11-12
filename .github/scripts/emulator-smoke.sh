@@ -2,20 +2,41 @@
 # Run as one script file so compound shell blocks are not split by the emulator action.
 set +e
 
+# Retry transient ADB disconnects while Android framework services settle.
+adb_retry() {
+  local tries=0
+  until "$@"; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 8 ]; then
+      echo "ADB command failed after $tries attempts: $*"
+      return 1
+    fi
+    echo "ADB temporarily unavailable (attempt $tries); reconnecting..."
+    adb reconnect offline >/dev/null 2>&1 || true
+    sleep 5
+  done
+}
+
 # Always preserve app/system logs, including when an adb command fails midway.
 capture_diagnostics() {
-  adb logcat -b all -d -v threadtime > emulator-logcat.txt 2>&1 || true
+  adb_retry adb logcat -b all -d -v threadtime > emulator-logcat.txt 2>&1 || true
 }
 trap capture_diagnostics EXIT
 
-adb wait-for-device
-for attempt in $(seq 1 90); do
+adb_retry adb wait-for-device
+booted=""
+for attempt in $(seq 1 300); do
   booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r' || true)"
   [ "$booted" = "1" ] && break
+  # A device can reconnect while system_server is starting; tolerate that.
+  if [ $((attempt % 15)) -eq 0 ]; then
+    adb reconnect offline >/dev/null 2>&1 || true
+  fi
   sleep 2
 done
 if [ "$booted" != "1" ]; then
-  echo "Android emulator did not finish booting."
+  echo "Android emulator framework did not finish booting within 10 minutes."
+  capture_diagnostics
   exit 1
 fi
 
