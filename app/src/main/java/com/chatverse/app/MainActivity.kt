@@ -3242,7 +3242,7 @@ private fun GlassNavigation(
                     RoundedCornerShape(22.dp)
                 )
         )
-        Row(Modifier.fillMaxWidth().selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().semantics { selectableGroup() }, verticalAlignment = Alignment.CenterVertically) {
             NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
             NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
             NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
