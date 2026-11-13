@@ -680,7 +680,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 }
             }
 
-            GlassNavigation(
+            BottomNavigationBar(
                 selected = selectedTab,
                 onSelect = { selectedTab = it },
                 modifier = Modifier
@@ -1374,7 +1374,7 @@ private fun ChatRow(chat: ChatItem) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(Color(0xCC1B3036), Color(0xAA122329))))
+            .background(Color(0xFF1F2C34))
             .clickable { }
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1383,7 +1383,7 @@ private fun ChatRow(chat: ChatItem) {
             modifier = Modifier
                 .size(50.dp)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(0xFF28665E), Color(0xFF24506A)))),
+                .background(Color(0xFF28665E)),
             contentAlignment = Alignment.Center
         ) {
             Text(chat.initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -3092,7 +3092,7 @@ private fun BackgroundThemeSection() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("Background", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        Text("Pilih warna latar aplikasi. Liquid Glass tetap putih agar kontras.", color = Muted, fontSize = 12.sp)
+        Text("Pilih warna latar aplikasi. Panel solid menjaga tampilan tetap jelas dan ringan.", color = Muted, fontSize = 12.sp)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -3148,7 +3148,7 @@ private fun BackgroundThemeSection() {
             contentAlignment = Alignment.Center
         ) {
             Box(Modifier.fillMaxWidth(0.72f).height(34.dp).glassPanel(RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                Text("Liquid Glass preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("ChatVerse • Tampilan standar", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
@@ -3174,32 +3174,11 @@ private fun GlassPanelSurface(content: @Composable () -> Unit) {
 
 private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .clip(shape)
-    .background(
-        Brush.linearGradient(
-            colors = listOf(
-                Color(0x48FFFFFF),
-                Color(0x22FFFFFF),
-                Color(0x0AFFFFFF),
-                Color(0x2AFFFFFF),
-                Color(0x12FFFFFF)
-            )
-        )
-    )
-    .border(
-        width = 0.8.dp,
-        brush = Brush.linearGradient(
-            colors = listOf(
-                Color(0xCFFFFFFF),
-                Color(0x66FFFFFF),
-                Color(0x20FFFFFF),
-                Color(0x75FFFFFF)
-            )
-        ),
-        shape = shape
-    )
+    .background(Color(0xFF1F2C34))
+    .border(width = 1.dp, color = Color(0xFF293943), shape = shape)
 
 @Composable
-private fun GlassNavigation(
+private fun BottomNavigationBar(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
