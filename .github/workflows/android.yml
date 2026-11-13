@@ -12,6 +12,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  edge-function-check:
+    name: Supabase Edge Function check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check LiveKit token function
+        run: deno check supabase/functions/livekit-token/index.ts
+
+      - name: Lint LiveKit token function
+        run: deno lint supabase/functions/livekit-token/index.ts
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
