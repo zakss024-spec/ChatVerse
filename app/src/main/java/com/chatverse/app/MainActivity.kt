@@ -637,15 +637,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            AppearanceState.background.copy(alpha = 0.96f),
-                            AppearanceState.background,
-                            AppearanceState.background.copy(alpha = 0.88f)
-                        )
-                    )
-                )
+                .background(AppearanceState.background)
         ) {
             Column(
                 modifier = Modifier
@@ -678,7 +670,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 }
             }
 
-            GlassNavigation(
+            BottomNavigationBar(
                 selected = selectedTab,
                 onSelect = { selectedTab = it },
                 modifier = Modifier
@@ -3090,7 +3082,7 @@ private fun BackgroundThemeSection() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("Background", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        Text("Pilih warna latar aplikasi. Liquid Glass tetap putih agar kontras.", color = Muted, fontSize = 12.sp)
+        Text("Pilih warna latar aplikasi. Tampilan memakai panel solid agar tetap jelas dan ringan.", color = Muted, fontSize = 12.sp)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -3146,7 +3138,7 @@ private fun BackgroundThemeSection() {
             contentAlignment = Alignment.Center
         ) {
             Box(Modifier.fillMaxWidth(0.72f).height(34.dp).glassPanel(RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                Text("Liquid Glass preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("ChatVerse • Tampilan standar", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
@@ -3172,32 +3164,11 @@ private fun GlassPanelSurface(content: @Composable () -> Unit) {
 
 private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .clip(shape)
-    .background(
-        Brush.linearGradient(
-            colors = listOf(
-                Color(0x48FFFFFF),
-                Color(0x22FFFFFF),
-                Color(0x0AFFFFFF),
-                Color(0x2AFFFFFF),
-                Color(0x12FFFFFF)
-            )
-        )
-    )
-    .border(
-        width = 0.8.dp,
-        brush = Brush.linearGradient(
-            colors = listOf(
-                Color(0xCFFFFFFF),
-                Color(0x66FFFFFF),
-                Color(0x20FFFFFF),
-                Color(0x75FFFFFF)
-            )
-        ),
-        shape = shape
-    )
+    .background(Color(0xFF1F2C34))
+    .border(width = 1.dp, color = Color(0xFF293943), shape = shape)
 
 @Composable
-private fun GlassNavigation(
+private fun BottomNavigationBar(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
