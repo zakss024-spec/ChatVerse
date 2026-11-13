@@ -655,10 +655,9 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     .padding(start = 0.dp, end = 0.dp, top = 0.dp, bottom = 76.dp)
             ) {
                 Header(onProfileClick = { selectedTab = 4 })
-                Spacer(Modifier.height(8.dp))
                 AnimatedContent(
                     targetState = selectedTab,
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     transitionSpec = {
                         (androidx.compose.animation.slideInHorizontally(
                             animationSpec = tween(280),
@@ -696,8 +695,8 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 private fun Header(onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(Color(0xFF075E54))
-            .padding(start = 18.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
+            .background(Color(0xFF0B141A))
+            .padding(start = 18.dp, end = 14.dp, top = 13.dp, bottom = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -706,14 +705,14 @@ private fun Header(onProfileClick: () -> Unit) {
             Text(
                 "ChatVerse",
                 color = Color.White,
-                fontSize = 21.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.35).sp
             )
         }
         Box(
-            modifier = Modifier.size(38.dp).clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.16f))
+            modifier = Modifier.size(40.dp).clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.08f))
                 .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
@@ -789,7 +788,7 @@ private fun ChatsHubScreen(accessToken: String) {
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Cari teman", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("Cari username", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
@@ -838,10 +837,9 @@ private fun ChatsHubScreen(accessToken: String) {
         }
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF182229)),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
-                    .glassPanel(RoundedCornerShape(18.dp))
                     .clickable { showGlobal = true }
             ) {
                 Row(
@@ -860,7 +858,7 @@ private fun ChatsHubScreen(accessToken: String) {
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Pesan", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Text(inboxStatus, color = Muted, fontSize = 11.sp)
             }
         }
@@ -868,31 +866,29 @@ private fun ChatsHubScreen(accessToken: String) {
             val label = item.peerName.ifBlank { "@" + item.peerUsername }
             Row(
                 Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
                     .clickable {
                         activeId = item.id
                         activeTitle = label
                     }
-                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    Modifier.size(50.dp).clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(0xFF1E6B58), Color(0xFF183B38))))
-                        .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape),
+                    Modifier.size(52.dp).clip(CircleShape)
+                        .background(Color(0xFF263B43)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(label.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
                 Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f).padding(bottom = 2.dp)) {
-                    Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(label, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1)
                     Spacer(Modifier.height(3.dp))
-                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Muted, fontSize = 12.sp, maxLines = 1)
+                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Color(0xFF9EACB4), fontSize = 13.sp, maxLines = 1)
                 }
                 Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat", tint = Color.White.copy(alpha = 0.68f), modifier = Modifier.size(18.dp))
             }
-            Box(Modifier.fillMaxWidth().padding(start = 73.dp).height(0.6.dp).background(Color.White.copy(alpha = 0.075f)))
+            Box(Modifier.fillMaxWidth().padding(start = 81.dp).height(0.6.dp).background(Color(0xFF263238)))
         }
         if (inbox.none { it.type != "global" && it.type != "group" }) {
             item {
@@ -904,7 +900,7 @@ private fun ChatsHubScreen(accessToken: String) {
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
-                    .glassPanel(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF182229), RoundedCornerShape(12.dp))
                     .clickable {
                         scope.launch {
                             try {
