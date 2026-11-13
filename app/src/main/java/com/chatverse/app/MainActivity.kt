@@ -383,8 +383,6 @@ private fun AuthGate() {
             return
         }
         ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            }
             ChatVerseAnalytics.reset()
             sessionStore.clear()
             restoredSession = null
