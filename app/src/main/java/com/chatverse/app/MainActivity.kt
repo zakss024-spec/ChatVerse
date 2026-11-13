@@ -316,7 +316,6 @@ private fun AuthGate() {
             updateDismissed = false
         } else {
             updateCheckFinished = false
-            PushTokenManager.syncWithSupabase(context, accessToken.orEmpty())
             val update = checkChatVerseUpdate()
             availableUpdate = update
             val dismissedVersion = context.getSharedPreferences("chatverse_update_state", Context.MODE_PRIVATE)
@@ -385,7 +384,6 @@ private fun AuthGate() {
         }
         ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                PushTokenManager.unregisterFromSupabase(context, accessToken.orEmpty())
             }
             ChatVerseAnalytics.reset()
             sessionStore.clear()
