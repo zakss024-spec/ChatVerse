@@ -748,28 +748,38 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 private fun Header(onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(Color(0xFF0B141A))
-            .padding(start = 18.dp, end = 14.dp, top = 13.dp, bottom = 13.dp),
+            .background(Color(0xFF111B21))
+            .padding(start = 18.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            BrandMark(30.dp)
-            Text(
-                "ChatVerse",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.35).sp
-            )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            BrandMark(32.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    "ChatVerse",
+                    color = Color.White,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.45).sp
+                )
+                Text(
+                    "MESSAGING",
+                    color = Color(0xFF8696A0),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+            }
         }
         Box(
             modifier = Modifier.size(40.dp).clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(Color(0xFF202C33))
+                .border(1.dp, Color.White.copy(alpha = 0.06f), CircleShape)
                 .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
-            Text("Z", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Z", color = Color(0xFFE9EDEF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
 }
@@ -785,6 +795,7 @@ private fun ChatsHubScreen(accessToken: String) {
     var activeId by remember { mutableStateOf("") }
     var activeTitle by remember { mutableStateOf("") }
     var showGlobal by remember { mutableStateOf(false) }
+    var showGroups by remember { mutableStateOf(false) }
     var inbox by remember { mutableStateOf(listOf<ConversationPreview>()) }
     var inboxStatus by remember { mutableStateOf("Memuat daftar chat...") }
     val scope = rememberCoroutineScope()
@@ -822,6 +833,14 @@ private fun ChatsHubScreen(accessToken: String) {
         Column {
             TextButton(onClick = { showGlobal = false }) { Text("← Kembali ke Chats", color = Mint) }
             GlobalChatScreen(accessToken)
+        }
+        return
+    }
+
+    if (showGroups) {
+        Column {
+            TextButton(onClick = { showGroups = false }) { Text("← Kembali ke Chats", color = Mint) }
+            GroupsScreen(accessToken)
         }
         return
     }
@@ -889,23 +908,43 @@ private fun ChatsHubScreen(accessToken: String) {
             }
         }
         item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF182229)),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-                    .clickable { showGlobal = true }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF202C33)),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.weight(1f).clickable { showGroups = true }
                 ) {
-                    Icon(Icons.Rounded.Public, contentDescription = null, tint = Mint, modifier = Modifier.size(22.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("ChatVerse Global", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        Text("Masuk ke percakapan publik", color = Muted, fontSize = 12.sp)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(21.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Groups", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("Obrolan bersama", color = Color(0xFF8696A0), fontSize = 10.sp)
+                        }
                     }
-                    Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(18.dp))
+                }
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF202C33)),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.weight(1f).clickable { showGlobal = true }
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Public, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(21.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Global Chat", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("Ruang publik", color = Color(0xFF8696A0), fontSize = 10.sp)
+                        }
+                    }
                 }
             }
         }
@@ -928,7 +967,7 @@ private fun ChatsHubScreen(accessToken: String) {
             ) {
                 Box(
                     Modifier.size(52.dp).clip(CircleShape)
-                        .background(Color(0xFF263B43)),
+                        .background(Color(0xFF263A32)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(label.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
@@ -937,11 +976,11 @@ private fun ChatsHubScreen(accessToken: String) {
                 Column(Modifier.weight(1f).padding(bottom = 2.dp)) {
                     Text(label, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1)
                     Spacer(Modifier.height(3.dp))
-                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Color(0xFF9EACB4), fontSize = 13.sp, maxLines = 1)
+                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Color(0xFF8696A0), fontSize = 13.sp, maxLines = 1)
                 }
                 Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat", tint = Color.White.copy(alpha = 0.68f), modifier = Modifier.size(18.dp))
             }
-            Box(Modifier.fillMaxWidth().padding(start = 81.dp).height(0.6.dp).background(Color(0xFF263238)))
+            Box(Modifier.fillMaxWidth().padding(start = 81.dp).height(0.6.dp).background(Color(0xFF222D34)))
         }
         if (inbox.none { it.type != "global" && it.type != "group" }) {
             item {
@@ -3335,8 +3374,8 @@ private fun BottomNavigationBar(
 ) {
     Row(
         modifier = modifier.fillMaxWidth()
-            .background(Panel)
-            .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.10f)),
+            .background(Color(0xFF111B21))
+            .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.07f)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
@@ -3377,7 +3416,7 @@ private fun NavigationItem(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(62.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(12.dp))
             .semantics {
@@ -3387,8 +3426,16 @@ private fun NavigationItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(21.dp))
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = tint, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(18.dp))
+                .background(if (active) Color(0xFF123D2C) else Color.Transparent)
+                .padding(horizontal = 15.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = label, tint = if (active) Color(0xFF25D366) else Color(0xFF8696A0), modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(label, color = if (active) Color(0xFF25D366) else Color(0xFF8696A0), fontSize = 9.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
     }
 }
