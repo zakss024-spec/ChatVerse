@@ -401,7 +401,7 @@ private fun AuthGate() {
         Box(Modifier.align(Alignment.TopEnd).padding(top = 74.dp, end = 12.dp)
             .size(190.dp).clip(CircleShape).background(Color(0xFF64E8C7).copy(alpha = 0.045f)))
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 26.dp),
+            modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 92.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -558,30 +558,33 @@ private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         developers.forEach { (name, username) ->
-            Row(
+            Column(
                 modifier = Modifier.weight(1f)
                     .clip(RoundedCornerShape(13.dp))
                     .background(Color(0xFF101A15))
                     .border(1.dp, Mint.copy(alpha = 0.24f), RoundedCornerShape(13.dp))
                     .clickable { openTikTokProfile(context, username) }
-                    .padding(horizontal = 7.dp, vertical = 9.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Icon(
-                    Icons.Rounded.MusicNote,
-                    contentDescription = "TikTok $name",
-                    tint = Mint,
-                    modifier = Modifier.size(15.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    name,
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Icon(
+                        Icons.Rounded.MusicNote,
+                        contentDescription = "TikTok $name",
+                        tint = Mint,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        name,
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+                Text("TIKTOK", color = Mint.copy(alpha = 0.85f), fontSize = 7.sp, letterSpacing = 1.sp)
             }
         }
     }
