@@ -2,7 +2,6 @@
 # Run as one script file so compound shell blocks are not split by the emulator action.
 set +e
 
-# Retry transient ADB disconnects while Android framework services settle.
 adb_retry() {
   local tries=0
   until "$@"; do
@@ -17,7 +16,6 @@ adb_retry() {
   done
 }
 
-# Always preserve app/system logs, including when an adb command fails midway.
 capture_diagnostics() {
   adb_retry adb logcat -b all -d -v threadtime > emulator-logcat.txt 2>&1 || true
 }
@@ -28,7 +26,6 @@ booted=""
 for attempt in $(seq 1 300); do
   booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
   [ "$booted" = "1" ] && break
-  # A device can reconnect while system_server is starting; tolerate that.
   if [ $((attempt % 15)) -eq 0 ]; then
     adb reconnect offline >/dev/null 2>&1 || true
   fi
@@ -40,14 +37,12 @@ if [ "$booted" != "1" ]; then
   exit 1
 fi
 
-# sys.boot_completed can become 1 before system_server is healthy. Wait until
-# PackageManager and ActivityManager answer repeatedly before installing.
 wait_for_system_services() {
   local stable=0
   for attempt in $(seq 1 60); do
     local package_state activity_state
-    package_state="$(adb shell service check package 2>/dev/null | tr -d '\\r' || true)"
-    activity_state="$(adb shell service check activity 2>/dev/null | tr -d '\\r' || true)"
+    package_state="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
+    activity_state="$(adb shell service check activity 2>/dev/null | tr -d '\r' || true)"
     if [[ "$package_state" == *"found"* && "$activity_state" == *"found"* ]]; then
       stable=$((stable + 1))
       if [ "$stable" -ge 3 ]; then
@@ -88,41 +83,46 @@ if ! adb shell pm path com.chatverse.app | grep -q "package:"; then
   exit 1
 fi
 
-adb_retry adb shell am force-stop com.chatverse.app
-adb_retry adb shell am start -W -n com.chatverse.app/.MainActivity
-start_status=$?
-if [ "$start_status" -ne 0 ]; then
-  echo "Activity launch command failed with exit code $start_status"
+adb_retry adb shell am force-stop com.chatverse.app || exit 1
+launch_output="$(adb shell am start -W -n com.chatverse.app/.MainActivity 2>&1)"
+launch_status=$?
+printf '%s\n' "$launch_output"
+if [ "$launch_status" -ne 0 ] || ! printf '%s\n' "$launch_output" | grep -qE '^Status: ok$'; then
+  echo "ChatVerse activity launch did not report Status: ok (exit=$launch_status)."
   capture_diagnostics
-  exit "$start_status"
+  exit 1
 fi
 
-app_pid=""
-for attempt in $(seq 1 60); do
-  app_pid="$(adb shell pidof com.chatverse.app 2>/dev/null | tr -d '\r' || true)"
-  if [ -n "$app_pid" ]; then
+# A process existing is not enough: confirm Android actually resumed ChatVerse.
+resumed_activity=""
+for attempt in $(seq 1 30); do
+  resumed_activity="$(adb shell dumpsys activity activities 2>/dev/null | grep -E 'mResumedActivity|topResumedActivity' | head -n 2 || true)"
+  if printf '%s\n' "$resumed_activity" | grep -q 'com\.chatverse\.app'; then
     break
   fi
   sleep 2
 done
-
-capture_diagnostics
-if [ -z "$app_pid" ]; then
-  echo "ChatVerse process was not observed after launch."
-  echo "System ANRs are diagnostic only; inspect app-specific fatal errors below."
-  grep -E "Process: com\\.chatverse\\.app|ANR in com\\.chatverse\\.app" emulator-logcat.txt || true
+if ! printf '%s\n' "$resumed_activity" | grep -q 'com\.chatverse\.app'; then
+  echo "ChatVerse did not become the resumed foreground activity."
+  echo "Last resumed activity state: $resumed_activity"
+  capture_diagnostics
   exit 1
 fi
 
-# Android emulator images can crash unrelated system packages (for example SystemUI
-# or Bluetooth) when the hosted runner is overloaded. Only fail for ChatVerse's
-# own process or an ANR explicitly attributed to the ChatVerse package.
+app_pid="$(adb shell pidof com.chatverse.app 2>/dev/null | tr -d '\r' || true)"
+if [ -z "$app_pid" ]; then
+  echo "ChatVerse process was not observed after foreground launch."
+  capture_diagnostics
+  exit 1
+fi
+
+sleep 5
+capture_diagnostics
 if grep -E "Process: com\\.chatverse\\.app|ANR in com\\.chatverse\\.app" emulator-logcat.txt; then
   echo "App-specific fatal error or ANR detected."
   exit 1
 fi
 
-sleep 8
 adb_retry adb exec-out screencap -p > chatverse-preview.png
 capture_status=$?
 if [ "$capture_status" -ne 0 ] || [ ! -s chatverse-preview.png ]; then
