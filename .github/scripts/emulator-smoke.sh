@@ -110,11 +110,14 @@ capture_diagnostics
 if [ -z "$app_pid" ]; then
   echo "ChatVerse process was not observed after launch."
   echo "System ANRs are diagnostic only; inspect app-specific fatal errors below."
-  grep -E "FATAL EXCEPTION|ANR in com.chatverse.app|Process: com.chatverse.app" emulator-logcat.txt || true
+  grep -E "Process: com\\.chatverse\\.app|ANR in com\\.chatverse\\.app" emulator-logcat.txt || true
   exit 1
 fi
 
-if grep -E "FATAL EXCEPTION:|ANR in com.chatverse.app|Process: com.chatverse.app" emulator-logcat.txt; then
+# Android emulator images can crash unrelated system packages (for example SystemUI
+# or Bluetooth) when the hosted runner is overloaded. Only fail for ChatVerse's
+# own process or an ANR explicitly attributed to the ChatVerse package.
+if grep -E "Process: com\\.chatverse\\.app|ANR in com\\.chatverse\\.app" emulator-logcat.txt; then
   echo "App-specific fatal error or ANR detected."
   exit 1
 fi
