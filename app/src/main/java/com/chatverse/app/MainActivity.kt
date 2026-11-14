@@ -80,6 +80,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -536,11 +537,72 @@ private fun AuthGate() {
                         color = Cyan, fontSize = 13.sp)
                 }
             }
-            Spacer(Modifier.height(20.dp))
-            Text("Developer: Zakss", color = Muted.copy(alpha = 0.7f), fontSize = 11.sp)
+        }
+        DeveloperTikTokLinks(
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+}
+@Composable
+private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val developers = listOf(
+        "ZAKSS" to "zakssstecuyy",
+        "DAKA" to "dakaaaaa15",
+        "NATHAN" to "nthnbvrdo"
+    )
+
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        developers.forEach { (name, username) ->
+            Row(
+                modifier = Modifier.weight(1f)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(Color(0xFF101A15))
+                    .border(1.dp, Mint.copy(alpha = 0.24f), RoundedCornerShape(13.dp))
+                    .clickable { openTikTokProfile(context, username) }
+                    .padding(horizontal = 7.dp, vertical = 9.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Rounded.MusicNote,
+                    contentDescription = "TikTok $name",
+                    tint = Mint,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    name,
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
+
+private fun openTikTokProfile(context: Context, username: String) {
+    val profileUri = Uri.parse("https://www.tiktok.com/@$username")
+    val appIntent = Intent(Intent.ACTION_VIEW, profileUri).apply {
+        setPackage("com.zhiliaoapp.musically")
+    }
+    val openedInApp = runCatching {
+        context.startActivity(appIntent)
+    }.isSuccess
+
+    if (!openedInApp) {
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, profileUri))
+        }
+    }
+}
+
 private val Night = Color(0xFF000000)
 private val Panel = Color(0xFF101214)
 private object AppearanceState {
@@ -2014,6 +2076,10 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
 @Composable
 private fun WelcomeIntroScreen(onFinished: () -> Unit) {
     var showText by remember { mutableStateOf(false) }
+    var showZakss by remember { mutableStateOf(false) }
+    var showDaka by remember { mutableStateOf(false) }
+    var showNathan by remember { mutableStateOf(false) }
+    var showTagline by remember { mutableStateOf(false) }
     val rain = rememberInfiniteTransition(label = "matrixRain")
     val phase by rain.animateFloat(
         initialValue = 0f,
@@ -2023,12 +2089,20 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
         ),
         label = "matrixRainPhase"
     )
-    val columns = remember { List(16) { kotlin.random.Random.nextInt(0, 1800) } }
+    val columns = remember { List(18) { kotlin.random.Random.nextInt(0, 1800) } }
 
     LaunchedEffect(Unit) {
-        delay(550)
+        delay(450)
         showText = true
-        delay(2850)
+        delay(400)
+        showZakss = true
+        delay(420)
+        showDaka = true
+        delay(420)
+        showNathan = true
+        delay(420)
+        showTagline = true
+        delay(1700)
         onFinished()
     }
 
@@ -2040,13 +2114,14 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
                     typeface = android.graphics.Typeface.MONOSPACE
                     textSize = 22f
                 }
-                val glyphs = "01アイウエオカキクケコサシスセソタチツテトナニヌネノ"
+                // Latin-only digital rain: no Japanese, kana, or kanji characters.
+                val glyphs = "ADJWICOEDSABCDEFGHIJKLMNOPQRSTUVWXYZ"
                 val columnWidth = size.width / columns.size
                 val cellHeight = 28f
                 columns.forEachIndexed { index, seed ->
                     val speed = 0.62f + (index % 6) * 0.13f
                     val offset = (phase * (size.height + 500f) * speed + seed) % (size.height + 500f)
-                    for (row in 0..9) {
+                    for (row in 0..10) {
                         val y = offset - row * cellHeight
                         if (y >= 0f && y <= size.height + cellHeight) {
                             val glyphIndex = (seed + row * 13 + index * 7) % glyphs.length
@@ -2064,23 +2139,88 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
             exit = fadeOut(tween(350)),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(11.dp)
+            ) {
                 Text(
-                    "Welcome to ChatVerse",
+                    "WELCOME TO CHATVERSE",
                     color = Color.White,
-                    fontSize = 25.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.4).sp
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Developer:Zakss",
-                    color = Mint,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.1.sp
                 )
+                Text(
+                    "THE MINDS BEHIND THE UNIVERSE",
+                    color = Mint,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.2.sp
+                )
+                Spacer(Modifier.height(5.dp))
+                IntroDeveloperCredit(
+                    name = "ZAKSS",
+                    role = "FOUNDER  •  LEAD DEVELOPER",
+                    tagline = "Architecting the vision",
+                    visible = showZakss
+                )
+                IntroDeveloperCredit(
+                    name = "DAKA",
+                    role = "CORE DEVELOPER",
+                    tagline = "Building beyond boundaries",
+                    visible = showDaka
+                )
+                IntroDeveloperCredit(
+                    name = "NATHAN",
+                    role = "CORE DEVELOPER",
+                    tagline = "Turning ideas into reality",
+                    visible = showNathan
+                )
+                AnimatedVisibility(
+                    visible = showTagline,
+                    enter = fadeIn(tween(450))
+                ) {
+                    Text(
+                        "THREE MINDS. ONE VISION.",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.7.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun IntroDeveloperCredit(
+    name: String,
+    role: String,
+    tagline: String,
+    visible: Boolean
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(350)) + slideInVertically(
+            animationSpec = tween(350),
+            initialOffsetY = { it / 3 }
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(0.88f)
+                .clip(RoundedCornerShape(13.dp))
+                .background(Color(0xCC07150D))
+                .border(1.dp, Mint.copy(alpha = 0.28f), RoundedCornerShape(13.dp))
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+            Text(role, color = Mint, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(tagline, color = Color(0xFFB7C9BC), fontSize = 9.sp)
         }
     }
 }
