@@ -4,11 +4,6 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Activate Firebase configuration only after the user adds app/google-services.json.
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
-
 val chatVersePostHogApiKey = providers.gradleProperty("CHATVERSE_POSTHOG_API_KEY")
     .orElse(providers.environmentVariable("CHATVERSE_POSTHOG_API_KEY"))
     .getOrElse("")
