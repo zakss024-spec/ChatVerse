@@ -24,9 +24,5 @@ class ChatVerseApp : Application() {
             PostHogAndroid.setup(this, config)
             ChatVerseAnalytics.enable()
         }
-
-        // FCM initializes automatically when google-services.json is present.
-        // The app remains usable while Firebase is not configured yet.
-        runCatching { PushTokenManager.cacheCurrentToken(this) }
     }
 }

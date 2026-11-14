@@ -12,6 +12,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  edge-function-check:
+    name: Supabase Edge Function check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check LiveKit token function
+        run: deno check supabase/functions/livekit-token/index.ts
+
+      - name: Lint LiveKit token function
+        run: deno lint supabase/functions/livekit-token/index.ts
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -38,7 +57,7 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;google_apis;x86_64"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;35.0.0" "emulator" "system-images;android-34;google_apis;x86_64"
 
       - name: Run unit tests and Android lint
         run: gradle :app:testDebugUnitTest :app:lintDebug
@@ -64,15 +83,18 @@ jobs:
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-boot-timeout: 900
-          ram-size: 4096M
-          heap-size: 1024M
+          # Keep the virtual device lightweight on shared GitHub-hosted runners.
+          # The previous 4 GB / 4-core AVD stalled during framework startup and
+          # eventually returned Broken pipe from system services.
+          emulator-boot-timeout: 1200
+          ram-size: 3072M
+          heap-size: 768M
           cores: 2
-          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect
           disable-animations: true
           script: bash .github/scripts/emulator-smoke.sh
 
@@ -90,5 +112,15 @@ jobs:
       - name: Report emulator smoke result
         if: always()
         run: |
-          echo "Emulator smoke-test outcome: ${{ steps.emulator_smoke.outcome }}"
-          echo "A failed emulator job is reported separately from unit tests, lint, and APK build."
+          outcome="${{ steps.emulator_smoke.outcome }}"
+          echo "Emulator smoke-test outcome: $outcome"
+          {
+            echo "### Android emulator smoke test"
+            if [ "$outcome" = "success" ]; then
+              echo "✅ Emulator installed and launched ChatVerse successfully."
+            else
+              echo "⚠️ Emulator smoke test did not complete. Unit tests, lint, and APK build are reported separately; inspect emulator diagnostics before treating runtime validation as passed."
+            fi
+            echo ""
+            echo "Outcome: **$outcome**"
+          } >> "$GITHUB_STEP_SUMMARY"
