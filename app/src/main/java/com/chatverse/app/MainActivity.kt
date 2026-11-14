@@ -461,7 +461,7 @@ private fun AuthGate() {
                     onClick = {
                         when {
                             !AuthValidation.isValidUsername(username.trim()) ->
-                                message = "Username harus 3–30 karakter: huruf kecil, angka, titik, atau garis bawah."
+                                message = "Username harus 3–30 karakter: huruf besar/kecil, angka, titik, atau garis bawah."
                             !AuthValidation.isValidPassword(password) ->
                                 message = "Password harus 8–128 karakter."
                             isRegister && !AuthValidation.passwordsMatch(password, confirmPassword) ->
@@ -779,7 +779,7 @@ private fun ChatsHubScreen(accessToken: String) {
                 Text("Cari username", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+                    onValueChange = { query = AuthValidation.normalizeUsername(it) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     placeholder = { Text("Cari username ChatVerse...") }
@@ -1461,7 +1461,7 @@ private fun GroupsScreen(accessToken: String) {
     Spacer(Modifier.height(12.dp))
     Text("Create a group", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
     OutlinedTextField(value = title, onValueChange = { title = it.take(60) }, label = { Text("Nama grup") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(value = query, onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+    OutlinedTextField(value = query, onValueChange = { query = AuthValidation.normalizeUsername(it) },
         label = { Text("Cari username teman") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     val groupSearchInteraction = remember { MutableInteractionSource() }
     val groupSearchPressed by groupSearchInteraction.collectIsPressedAsState()
@@ -2929,7 +2929,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     OutlinedTextField(value = username, onValueChange = { value -> username = AuthValidation.normalizeUsername(value) }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = bio, onValueChange = { bio = it.take(160) }, label = { Text("Bio (maks. 160 karakter)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
     Button(onClick = {
-            if (!username.trim().matches(Regex("[a-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
+            if (!username.trim().matches(Regex("[A-Za-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
             else saving = true
         }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)) {
@@ -2946,7 +2946,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     LaunchedEffect(saving) {
         if (saving && userId.isNotBlank()) {
             try {
-                val body = JSONObject().put("display_name", displayName.trim()).put("username", username.trim()).put("bio", bio.trim())
+                val body = JSONObject().put("display_name", displayName.trim()).put("username", username.trim().lowercase()).put("bio", bio.trim())
                 val result = supabaseCall("/rest/v1/profiles?id=eq.$userId", accessToken, "PATCH", body)
                 status = if (result.first in 200..299) "Profil berhasil disimpan." else "Gagal menyimpan (${result.first}). Username mungkin sudah dipakai."
             } catch (_: Exception) {
