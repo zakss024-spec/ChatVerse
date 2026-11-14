@@ -2145,8 +2145,27 @@ private fun UpdatesScreen(accessToken:String) {
                 if (mime !in allowed) {
                     status = if (type == "image") "Format foto harus JPG, PNG, atau WEBP." else "Video harus MP4."
                 } else {
-                    val bytes = withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
-                    if (bytes == null || bytes.isEmpty() || bytes.size > 20 * 1024 * 1024) {
+                    // Read with a hard cap so oversized videos cannot consume unbounded memory.
+                    val bytes = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            var exceededLimit = false
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > 20 * 1024 * 1024) {
+                                    exceededLimit = true
+                                    break
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            if (exceededLimit) null else output.toByteArray()
+                        }
+                    }
+                    if (bytes == null || bytes.isEmpty()) {
                         status = "File kosong atau melebihi batas 20 MB."
                     } else {
                         val storyId = java.util.UUID.randomUUID().toString()
