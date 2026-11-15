@@ -551,6 +551,7 @@ private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
         "DAKA" to "dakaaaaa15",
         "NATHAN" to "nthnbvrdo"
     )
+    val glassShape = RoundedCornerShape(17.dp)
 
     Row(
         modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
@@ -558,38 +559,77 @@ private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         developers.forEach { (name, username) ->
-            Column(
+            Box(
                 modifier = Modifier.weight(1f)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(Color(0xFF101A15))
-                    .border(1.dp, Mint.copy(alpha = 0.24f), RoundedCornerShape(13.dp))
-                    .clickable { openTikTokProfile(context, username) }
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Icon(
-                        Icons.Rounded.MusicNote,
-                        contentDescription = "TikTok $name",
-                        tint = Mint,
-                        modifier = Modifier.size(14.dp)
+                    .height(88.dp)
+                    .shadow(13.dp, glassShape, clip = false, ambientColor = Mint.copy(alpha = 0.16f), spotColor = Color.Black.copy(alpha = 0.48f))
+                    .clip(glassShape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xD936514A),
+                                Color(0xC51B302A),
+                                Color(0xD00D1715)
+                            )
+                        )
                     )
-                    Spacer(Modifier.width(3.dp))
+                    .border(
+                        1.dp,
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.42f),
+                                Mint.copy(alpha = 0.42f),
+                                Color.White.copy(alpha = 0.08f)
+                            )
+                        ),
+                        glassShape
+                    )
+                    .clickable { openTikTokProfile(context, username) },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    Box(
+                        Modifier.fillMaxWidth().height(1.dp).align(Alignment.TopCenter)
+                            .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.62f), Mint.copy(alpha = 0.45f), Color.Transparent)))
+                    )
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 3.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Box(
+                            Modifier.size(27.dp).clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color.White.copy(alpha = 0.22f), Mint.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.12f))
+                                    )
+                                )
+                                .border(0.8.dp, Color.White.copy(alpha = 0.28f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.MusicNote,
+                                contentDescription = "TikTok $name",
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                        Text(name, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp, maxLines = 1)
+                        Text("@$username", color = Color(0xFFD0E4DC), fontSize = 7.sp, maxLines = 1)
+                    }
                     Text(
-                        name,
-                        color = Color.White,
-                        fontSize = 9.sp,
+                        "TIKTOK",
+                        color = Mint.copy(alpha = 0.95f),
+                        fontSize = 6.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1
+                        letterSpacing = 1.1.sp,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp)
                     )
                 }
-                Text("TIKTOK", color = Mint.copy(alpha = 0.85f), fontSize = 7.sp, letterSpacing = 1.sp)
             }
         }
     }
 }
-
 private fun openTikTokProfile(context: Context, username: String) {
     val profileUri = Uri.parse("https://www.tiktok.com/@$username")
     val appIntent = Intent(Intent.ACTION_VIEW, profileUri).apply {
