@@ -723,7 +723,10 @@ class MainActivity : ComponentActivity() {
         } else {
             themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
         }
-        if (!themePrefs.getBoolean("black_glass_default_v1", false)) {
+        if (LiquidGlassState.enabled) {
+            AppearanceState.background = Color(0xFF07110E)
+            AccentThemeState.accent = Color(0xFF7CF7C2)
+        } else if (!themePrefs.getBoolean("black_glass_default_v1", false)) {
             AppearanceState.background = Color(0xFF000000)
             themePrefs.edit()
                 .putString("background_hex", "#000000")
@@ -812,6 +815,9 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 
 @Composable
 private fun Header(onProfileClick: () -> Unit) {
+    var logoTapCount by remember { mutableIntStateOf(0) }
+    var showGlassNotice by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth()
             .background(if (LiquidGlassState.enabled) Color(0xB30B1B15) else Color(0xFF111B21))
@@ -819,9 +825,6 @@ private fun Header(onProfileClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        var logoTapCount by remember { mutableIntStateOf(0) }
-        var showGlassNotice by remember { mutableStateOf(false) }
-        val context = androidx.compose.ui.platform.LocalContext.current
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
             Box(
                 Modifier.clip(CircleShape).clickable {
