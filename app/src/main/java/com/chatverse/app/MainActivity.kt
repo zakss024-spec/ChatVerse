@@ -2570,9 +2570,42 @@ private fun UpdatesScreen(accessToken:String) {
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(9.dp)){
-        Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Updates",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.SemiBold);Text("Stories 24 jam dan Close Friends",color=Muted,fontSize=12.sp)};TextButton(onClick={scope.launch{reload()}}){Text("Refresh",color=Mint)}}
-        Text(status,color=Mint,fontSize=11.sp)
-        if(stories.isEmpty())FeatureCard("Belum ada Story","Buat Story teks atau unggah foto dan video MP4. Story aktif akan ditampilkan selama masa berlakunya.")
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF183B32), Color(0xFF172832), Color(0xFF111B21))))
+                .border(1.dp, Color(0xFF31564B), RoundedCornerShape(22.dp))
+                .padding(18.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("CHATVERSE • MOMENTS", color = Mint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+                        Text("Updates", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                        Text("Cerita singkat yang hilang dalam 24 jam.", color = Color(0xFFB6C8C4), fontSize = 12.sp)
+                    }
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0x3325D366)), contentAlignment = Alignment.Center) {
+                        Text("◉", color = Mint, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).clip(RoundedCornerShape(30.dp)).background(Color(0x3325D366)).padding(horizontal = 11.dp, vertical = 7.dp)) {
+                        Text(status, color = Color(0xFFD4E6DF), fontSize = 10.sp, maxLines = 1)
+                    }
+                    TextButton(onClick={scope.launch{reload()}}) { Text("Muat ulang", color=Mint, fontSize=11.sp) }
+                }
+            }
+        }
+        if(stories.isEmpty()) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).border(1.dp, Color(0xFF2B3A40), RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF203B34)), contentAlignment = Alignment.Center) {
+                        Text("＋", color = Mint, fontSize = 30.sp, fontWeight = FontWeight.Light)
+                    }
+                    Text("Belum ada cerita", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Mulai bagikan momen pertamamu. Cerita teks, foto, atau video akan tampil di sini.", color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center)
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
