@@ -562,7 +562,7 @@ private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
         developers.forEach { (name, username) ->
             Box(
                 modifier = Modifier.weight(1f)
-                    .height(88.dp)
+                    .height(72.dp)
                     .shadow(13.dp, glassShape, clip = false, ambientColor = Mint.copy(alpha = 0.16f), spotColor = Color.Black.copy(alpha = 0.48f))
                     .clip(glassShape)
                     .background(
@@ -599,7 +599,7 @@ private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
                         verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Box(
-                            Modifier.size(27.dp).clip(CircleShape)
+                            Modifier.size(24.dp).clip(CircleShape)
                                 .background(
                                     Brush.linearGradient(
                                         listOf(Color.White.copy(alpha = 0.22f), Mint.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.12f))
@@ -612,16 +612,16 @@ private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
                                 Icons.Rounded.MusicNote,
                                 contentDescription = "TikTok $name",
                                 tint = Color.White,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(14.dp)
                             )
                         }
-                        Text(name, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp, maxLines = 1)
-                        Text("@$username", color = Color(0xFFD0E4DC), fontSize = 7.sp, maxLines = 1)
+                        Text(name, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp, maxLines = 1)
+                        Text("@$username", color = Color(0xFFD0E4DC), fontSize = 8.sp, maxLines = 1)
                     }
                     Text(
                         "TIKTOK",
                         color = Mint.copy(alpha = 0.95f),
-                        fontSize = 6.sp,
+                        fontSize = 7.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.1.sp,
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp)
