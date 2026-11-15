@@ -652,6 +652,25 @@ private val Panel = Color(0xFF101214)
 private object AppearanceState {
     var background by mutableStateOf(Color(0xFF000000))
 }
+private object LiquidGlassState {
+    var enabled by mutableStateOf(false)
+}
+private fun applyLiquidGlassPalette(context: Context, enabled: Boolean) {
+    LiquidGlassState.enabled = enabled
+    if (enabled) {
+        AppearanceState.background = Color(0xFF07110E)
+        AccentThemeState.accent = Color(0xFF7CF7C2)
+    } else {
+        AppearanceState.background = Color(0xFF000000)
+        AccentThemeState.accent = Color(0xFF68E5C1)
+    }
+    context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean("liquid_glass_enabled", enabled)
+        .putString("background_hex", accentColorHex(AppearanceState.background))
+        .putString("accent_hex", accentColorHex(AccentThemeState.accent))
+        .apply()
+}
 private fun applyBackgroundColor(context: Context, color: Color) {
     AppearanceState.background = color
     context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
@@ -697,7 +716,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val themePrefs = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
-        themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
+        LiquidGlassState.enabled = themePrefs.getBoolean("liquid_glass_enabled", false)
+        if (LiquidGlassState.enabled) {
+            AppearanceState.background = Color(0xFF07110E)
+            AccentThemeState.accent = Color(0xFF7CF7C2)
+        } else {
+            themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
+        }
         if (!themePrefs.getBoolean("black_glass_default_v1", false)) {
             AppearanceState.background = Color(0xFF000000)
             themePrefs.edit()
@@ -789,13 +814,26 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 private fun Header(onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(Color(0xFF111B21))
+            .background(if (LiquidGlassState.enabled) Color(0xB30B1B15) else Color(0xFF111B21))
             .padding(start = 18.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
+        var logoTapCount by remember { mutableIntStateOf(0) }
+        var showGlassNotice by remember { mutableStateOf(false) }
+        val context = androidx.compose.ui.platform.LocalContext.current
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-            BrandMark(32.dp)
+            Box(
+                Modifier.clip(CircleShape).clickable {
+                    logoTapCount += 1
+                    if (logoTapCount >= 7) {
+                        val nextEnabled = !LiquidGlassState.enabled
+                        applyLiquidGlassPalette(context, nextEnabled)
+                        logoTapCount = 0
+                        showGlassNotice = true
+                    }
+                }.padding(2.dp)
+            ) { BrandMark(32.dp) }
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     "ChatVerse",
@@ -815,13 +853,33 @@ private fun Header(onProfileClick: () -> Unit) {
         }
         Box(
             modifier = Modifier.size(40.dp).clip(CircleShape)
-                .background(Color(0xFF202C33))
+                .background(if (LiquidGlassState.enabled) Color(0x663C6A55) else Color(0xFF202C33))
                 .border(1.dp, Color.White.copy(alpha = 0.06f), CircleShape)
                 .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
             Text("Z", color = Color(0xFFE9EDEF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
+    }
+    if (showGlassNotice) {
+        AlertDialog(
+            onDismissRequest = { showGlassNotice = false },
+            title = { Text(if (LiquidGlassState.enabled) "Liquid Glass diaktifkan" else "Tema standar dipulihkan") },
+            text = {
+                Text(
+                    if (LiquidGlassState.enabled)
+                        "ChatVerse memakai Liquid Glass dengan kombinasi warna Emerald Night yang dipilih otomatis."
+                    else
+                        "ChatVerse kembali ke tema Dark Emerald standar."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showGlassNotice = false }) { Text("Mengerti", color = Mint) }
+            },
+            containerColor = if (LiquidGlassState.enabled) Color(0xF21A3027) else Panel,
+            titleContentColor = Color.White,
+            textContentColor = Color(0xFFD6E6DE)
+        )
     }
 }
 private data class SearchProfile(val id: String, val username: String, val displayName: String)
@@ -3496,8 +3554,14 @@ private fun GlassPanelSurface(content: @Composable () -> Unit) {
 
 private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .clip(shape)
-    .background(Color(0xFF1F2C34))
-    .border(width = 1.dp, color = Color(0xFF293943), shape = shape)
+    .background(
+        if (LiquidGlassState.enabled) Color(0xA61B332A) else Color(0xFF1F2C34)
+    )
+    .border(
+        width = if (LiquidGlassState.enabled) 1.dp else 1.dp,
+        color = if (LiquidGlassState.enabled) Color.White.copy(alpha = 0.20f) else Color(0xFF293943),
+        shape = shape
+    )
 
 @Composable
 private fun BottomNavigationBar(
@@ -3507,7 +3571,7 @@ private fun BottomNavigationBar(
 ) {
     Row(
         modifier = modifier.fillMaxWidth()
-            .background(Color(0xFF111B21))
+            .background(if (LiquidGlassState.enabled) Color(0xB30B1B15) else Color(0xFF111B21))
             .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.07f)),
         verticalAlignment = Alignment.CenterVertically
     ) {
