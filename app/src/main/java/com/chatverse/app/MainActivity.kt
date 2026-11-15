@@ -3420,7 +3420,16 @@ private fun ProfileScreen(
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("ZakssX", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text("Official ChatVerse Developer • @ZakssX", color = Muted, fontSize = 11.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Official ChatVerse Developer", color = Muted, fontSize = 11.sp)
+                    Box(
+                        Modifier.size(15.dp).clip(CircleShape).background(Color(0xFF25D366)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✓", color = Color(0xFF10231B), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Text("@ZakssX", color = Muted, fontSize = 10.sp)
                 Text("Ketuk untuk mencari dan membuka chat", color = Mint, fontSize = 10.sp)
             }
             Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat developer", tint = Mint)
