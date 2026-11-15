@@ -859,8 +859,12 @@ private fun ChatsHubScreen(accessToken: String) {
         contentPadding = PaddingValues(bottom = 14.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Cari username", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Chats", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
+                    Text("Pesan pribadi, grup, dan teman baru", color = Color(0xFF8696A0), fontSize = 12.sp)
+                }
+                Text("Cari orang", color = Color(0xFFE9EDEF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = AuthValidation.normalizeUsername(it) },
@@ -949,9 +953,12 @@ private fun ChatsHubScreen(accessToken: String) {
             }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Pesan", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                Text(inboxStatus, color = Muted, fontSize = 11.sp)
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 1.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Terbaru", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(inboxStatus, color = Muted, fontSize = 10.sp, maxLines = 1)
             }
         }
         items(inbox.filterNot { it.type == "global" || it.type == "group" }, key = { it.id }) { item ->
@@ -1136,10 +1143,25 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     }
 
     Column(Modifier.fillMaxSize()) {
-    Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
-    Text(status, color = Muted, fontSize = 11.sp)
-    if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
-    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp)
+    ) {
+        Box(
+            Modifier.size(43.dp).clip(CircleShape).background(Color(0xFF263A32)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(title.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(if (peerTyping) "Sedang mengetik..." else "Chat pribadi", color = if (peerTyping) Mint else Muted, fontSize = 11.sp)
+        }
+        Box(Modifier.size(8.dp).clip(CircleShape).background(if (peerTyping) Mint else Color(0xFF65747C)))
+    }
+    Text(status, color = Muted, fontSize = 10.sp, maxLines = 1)
+    Spacer(Modifier.height(6.dp))
     LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).fillMaxWidth(), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
@@ -1152,7 +1174,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                     modifier = Modifier
                         .widthIn(max = 300.dp)
                         .clip(RoundedCornerShape(17.dp))
-                        .background(if (mine) Color(0xFF24564F) else Panel)
+                        .background(if (mine) Color(0xFF005C4B) else Color(0xFF202C33))
                         .clickable { if (!item.isDeleted) replyingTo = item }
                         .padding(horizontal = 13.dp, vertical = 10.dp),
                     horizontalAlignment = if (mine) Alignment.End else Alignment.Start
@@ -3008,8 +3030,10 @@ private fun CallsScreen(accessToken: String) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Calls", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-        Text("Panggilan suara dan video", color = Muted, fontSize = 12.sp)
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Calls", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
+            Text("Riwayat panggilan suara dan video", color = Muted, fontSize = 12.sp)
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CallActionTile("Audio", Icons.Rounded.Call, Modifier.weight(1f))
             CallActionTile("Video", Icons.Rounded.Call, Modifier.weight(1f))
@@ -3103,9 +3127,20 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-    Text("Settings & profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(8.dp))
-    Text(status, color = Mint, fontSize = 12.sp)
+    Row(
+        Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF263A32)), contentAlignment = Alignment.Center) {
+            Text(displayName.firstOrNull()?.uppercase() ?: "Z", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Settings", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (username.isBlank()) "Profil dan preferensi akun" else "@$username", color = Muted, fontSize = 12.sp)
+        }
+    }
+    Text(status, color = Mint, fontSize = 11.sp)
     Spacer(Modifier.height(16.dp))
     OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = username, onValueChange = { value -> username = AuthValidation.normalizeUsername(value) }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
