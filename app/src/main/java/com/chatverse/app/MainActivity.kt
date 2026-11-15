@@ -3000,16 +3000,40 @@ private fun CommunitiesScreen(accessToken: String) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Communities", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-                Text("Komunitas, channel, dan pengumuman", color = Muted, fontSize = 12.sp)
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF173B32), Color(0xFF182B38), Color(0xFF111B21))))
+                .border(1.dp, Color(0xFF31564B), RoundedCornerShape(22.dp)).padding(18.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("CHATVERSE • COMMUNITY SPACE", color = Mint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                        Text("Communities", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        Text("Temukan ruang untuk berbagi dan berdiskusi.", color = Color(0xFFB6C8C4), fontSize = 12.sp)
+                    }
+                    Box(Modifier.size(50.dp).clip(CircleShape).background(Color(0x3325D366)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = Mint, modifier = Modifier.size(28.dp))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).clip(RoundedCornerShape(30.dp)).background(Color(0x3325D366)).padding(horizontal = 11.dp, vertical = 7.dp)) {
+                        Text(status, color = Color(0xFFD4E6DF), fontSize = 10.sp, maxLines = 1)
+                    }
+                    TextButton(onClick = { scope.launch { refreshCommunities() } }) { Text("Muat ulang", color = Mint, fontSize = 11.sp) }
+                }
             }
-            TextButton(onClick = { scope.launch { refreshCommunities() } }) { Text("Refresh", color = Mint) }
         }
-        Text(status, color = Mint, fontSize = 11.sp)
         if (communities.isEmpty()) {
-            FeatureCard("Belum ada komunitas", "Buat komunitas pertama atau coba lagi setelah komunitas tersedia.")
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).border(1.dp, Color(0xFF2B3A40), RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF203B34)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = Mint, modifier = Modifier.size(28.dp))
+                    }
+                    Text("Belum ada komunitas", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Jadilah yang pertama membuat ruang komunitas dan mulai kumpulkan anggota.", color = Muted, fontSize = 11.sp)
+                }
+            }
         }
         communities.forEach { community ->
             val joined = community.id in joinedIds
