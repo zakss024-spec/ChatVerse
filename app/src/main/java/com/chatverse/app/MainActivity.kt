@@ -672,6 +672,17 @@ private fun applyLiquidGlassPalette(context: Context, enabled: Boolean) {
         .putString("accent_hex", accentColorHex(AccentThemeState.accent))
         .apply()
 }
+private fun hasReadableWhiteText(background: Color): Boolean {
+    fun linearize(channel: Float): Float =
+        if (channel <= 0.04045f) channel / 12.92f
+        else Math.pow(((channel + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+
+    val luminance = 0.2126f * linearize(background.red) +
+        0.7152f * linearize(background.green) +
+        0.0722f * linearize(background.blue)
+    return luminance <= 0.18f
+}
+
 private fun applyBackgroundColor(context: Context, color: Color) {
     AppearanceState.background = color
     context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
@@ -3465,7 +3476,6 @@ private fun BackgroundThemeSection() {
     val presets = listOf(
         "Pure Black" to Color(0xFF000000),
         "Graphite" to Color(0xFF101214),
-        "White" to Color(0xFFE9EEF0),
         "Gray" to Color(0xFF30363B),
         "Emerald" to Color(0xFF073B32),
         "Navy" to Color(0xFF101B35),
@@ -3510,8 +3520,11 @@ private fun BackgroundThemeSection() {
             Button(
                 onClick = {
                     val parsed = parseAccentColor(customHex)
-                    if (parsed == null) feedback = "Gunakan format #RRGGBB."
-                    else {
+                    if (parsed == null) {
+                        feedback = "Gunakan format #RRGGBB."
+                    } else if (!hasReadableWhiteText(parsed)) {
+                        feedback = "Warna terlalu terang untuk teks putih. Pilih background yang lebih gelap agar tetap terbaca."
+                    } else {
                         applyBackgroundColor(context, parsed)
                         customHex = accentColorHex(parsed)
                         feedback = "Background diterapkan."
