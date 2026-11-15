@@ -773,6 +773,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    var pendingChatUsername by remember { mutableStateOf<String?>(null) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -805,11 +806,22 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     label = "mainTabSlide"
                 ) { tab ->
                     when (tab) {
-                        0 -> ChatsHubScreen(accessToken)
+                        0 -> ChatsHubScreen(
+                            accessToken = accessToken,
+                            initialSearchUsername = pendingChatUsername,
+                            onInitialSearchHandled = { pendingChatUsername = null }
+                        )
                         1 -> UpdatesScreen(accessToken)
                         2 -> CommunitiesScreen(accessToken)
                         3 -> CallsScreen(accessToken)
-                        else -> ProfileScreen(accessToken, onLogout)
+                        else -> ProfileScreen(
+                            accessToken,
+                            onLogout,
+                            onDeveloperContactClick = {
+                                pendingChatUsername = "ZakssX"
+                                selectedTab = 0
+                            }
+                        )
                     }
                 }
             }
@@ -901,7 +913,11 @@ private data class SearchProfile(val id: String, val username: String, val displ
 private data class ConversationPreview(val id: String, val type: String, val title: String, val peerId: String, val peerUsername: String, val peerName: String, val lastMessage: String)
 
 @Composable
-private fun ChatsHubScreen(accessToken: String) {
+private fun ChatsHubScreen(
+    accessToken: String,
+    initialSearchUsername: String? = null,
+    onInitialSearchHandled: () -> Unit = {}
+) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(listOf<SearchProfile>()) }
     var status by remember { mutableStateOf("Cari username untuk memulai chat pribadi.") }
@@ -913,6 +929,38 @@ private fun ChatsHubScreen(accessToken: String) {
     var inbox by remember { mutableStateOf(listOf<ConversationPreview>()) }
     var inboxStatus by remember { mutableStateOf("Memuat daftar chat...") }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(initialSearchUsername, accessToken) {
+        val requestedUsername = initialSearchUsername?.trim().orEmpty()
+        if (requestedUsername.isNotBlank()) {
+            query = requestedUsername
+            searching = true
+            status = "Mencari akun developer..."
+            try {
+                val encoded = URLEncoder.encode(requestedUsername, "UTF-8")
+                val response = supabaseCall(
+                    "/rest/v1/profiles?username=ilike.$encoded&select=id,username,display_name&limit=5",
+                    accessToken
+                )
+                if (response.first in 200..299) {
+                    val array = org.json.JSONArray(response.second)
+                    results = (0 until array.length()).map { index ->
+                        val row = array.getJSONObject(index)
+                        SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name"))
+                    }
+                    status = if (results.isEmpty()) "Akun @ZakssX belum ditemukan."
+                    else "Akun developer ditemukan. Ketuk untuk membuka chat."
+                } else {
+                    status = "Pencarian akun developer gagal (${response.first})."
+                }
+            } catch (_: Exception) {
+                status = "Tidak dapat mencari akun developer. Periksa koneksi."
+            } finally {
+                searching = false
+                onInitialSearchHandled()
+            }
+        }
+    }
 
     LaunchedEffect(accessToken) {
         while (true) {
@@ -3264,7 +3312,11 @@ private fun CallActionTile(label: String, icon: androidx.compose.ui.graphics.vec
 }
 
 @Composable
-private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
+private fun ProfileScreen(
+    accessToken: String,
+    onLogout: () -> Unit,
+    onDeveloperContactClick: () -> Unit = {}
+) {
     var userId by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
@@ -3350,7 +3402,30 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Spacer(Modifier.height(12.dp))
     BackgroundThemeSection()
     Spacer(Modifier.height(12.dp))
-    FeatureCard("Developer Contact", "ZakssX • Official ChatVerse Developer • @ZakssX")
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onDeveloperContactClick)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF203B34)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Z", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("ZakssX", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Official ChatVerse Developer • @ZakssX", color = Muted, fontSize = 11.sp)
+                Text("Ketuk untuk mencari dan membuka chat", color = Mint, fontSize = 10.sp)
+            }
+            Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat developer", tint = Mint)
+        }
+    }
     Spacer(Modifier.height(12.dp))
     AnimatedActionButton(
         label = "Sign out",
