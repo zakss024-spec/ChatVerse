@@ -648,7 +648,8 @@ private fun openTikTokProfile(context: Context, username: String) {
 }
 
 private val Night = Color(0xFF000000)
-private val Panel = Color(0xFF101214)
+private val Panel: Color
+    get() = if (LiquidGlassState.enabled) Color(0xA61B332A) else Color(0xFF101214)
 private object AppearanceState {
     var background by mutableStateOf(Color(0xFF000000))
 }
@@ -820,7 +821,7 @@ private fun Header(onProfileClick: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(if (LiquidGlassState.enabled) Color(0xB30B1B15) else Color(0xFF111B21))
+            .background(if (LiquidGlassState.enabled) Color(0xA60B1B15) else Color(0xFF111B21))
             .padding(start = 18.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -3629,7 +3630,7 @@ private fun NavigationItem(
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (active) Color(0xFF123D2C) else Color.Transparent)
+                .background(if (active) { if (LiquidGlassState.enabled) Color(0x6639D98A) else Color(0xFF123D2C) } else Color.Transparent)
                 .padding(horizontal = 15.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center
         ) {
