@@ -1178,7 +1178,17 @@ private fun ChatsHubScreen(
                     }
             ) {
                 Column(Modifier.padding(15.dp)) {
-                    Text(profile.displayName.ifBlank { profile.username }, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(profile.displayName.ifBlank { profile.username }, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        if (profile.username.equals("ZakssX", ignoreCase = true)) {
+                            Box(
+                                Modifier.size(16.dp).clip(CircleShape).background(Color(0xFF25D366)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("✓", color = Color(0xFF10231B), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     Text("@" + profile.username, color = Mint, fontSize = 12.sp)
                 }
             }
