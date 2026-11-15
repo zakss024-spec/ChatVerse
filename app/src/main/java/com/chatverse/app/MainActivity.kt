@@ -3456,12 +3456,12 @@ private fun AccentThemeSection() {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Live preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Box(
-                        Modifier.clip(RoundedCornerShape(14.dp)).background(Mint).padding(horizontal = 12.dp, vertical = 8.dp)
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(AccentThemeState.accent).padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text("Chat bubble", color = AccentThemeState.onAccent, fontSize = 12.sp)
                     }
                 }
-                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(26.dp))
+                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = AccentThemeState.accent, modifier = Modifier.size(26.dp))
             }
         }
         if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
