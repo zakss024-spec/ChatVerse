@@ -245,6 +245,47 @@ private fun BrandMark(size: androidx.compose.ui.unit.Dp = 64.dp) {
 }
 
 @Composable
+private fun MatrixRainBackground(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "matrix-rain")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 14000, easing = LinearEasing)
+        ),
+        label = "matrix-rain-progress"
+    )
+    Canvas(modifier = modifier) {
+        val canvas = drawContext.canvas.nativeCanvas
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = android.graphics.Typeface.MONOSPACE
+            textSize = 13f
+        }
+        val glyphs = "01アイウエオカキクケコサシスセソタチツテトZAKSSDAKATHAN"
+        val columnCount = (size.width / 21f).toInt().coerceAtLeast(1)
+        for (column in 0 until columnCount) {
+            val x = column * 21f + 3f
+            val streamTop = ((column * 83f + progress * (size.height + 260f)) % (size.height + 260f)) - 130f
+            for (row in 0..11) {
+                val y = streamTop - row * 19f
+                if (y in -20f..(size.height + 20f)) {
+                    val glyph = glyphs[(column * 13 + row * 7) % glyphs.length].toString()
+                    val strength = (220 - row * 15).coerceIn(35, 220)
+                    paint.color = android.graphics.Color.argb(strength, 70, 255, 130)
+                    if (row == 0) paint.color = android.graphics.Color.argb(235, 205, 255, 220)
+                    canvas.drawText(glyph, x, y, paint)
+                }
+            }
+        }
+        paint.textSize = 15f
+        paint.color = android.graphics.Color.argb(72, 90, 255, 145)
+        paint.typeface = android.graphics.Typeface.create("monospace", android.graphics.Typeface.BOLD)
+        canvas.drawText("ZAKSS   DAKA   NATHAN", 18f, size.height * 0.19f, paint)
+        canvas.drawText("ZAKSS   DAKA   NATHAN", 18f, size.height * 0.79f, paint)
+    }
+}
+
+@Composable
 private fun AuthGate() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessionStore = remember { SecureSessionStore(context) }
@@ -396,11 +437,17 @@ private fun AuthGate() {
         return
     }
 
-    Box(Modifier.fillMaxSize().background(
-        Brush.radialGradient(listOf(Color(0xFF173B3B), Color(0xFF0A171C), Color(0xFF05090D)))
-    )) {
-        Box(Modifier.align(Alignment.TopEnd).padding(top = 74.dp, end = 12.dp)
-            .size(190.dp).clip(CircleShape).background(Color(0xFF64E8C7).copy(alpha = 0.045f)))
+    Box(Modifier.fillMaxSize().background(Color(0xFF020805))) {
+        MatrixRainBackground(Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)))
+        Text(
+            "ZAKSS  •  DAKA  •  NATHAN",
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 38.dp),
+            color = Mint.copy(alpha = 0.72f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 3.sp
+        )
         Column(
             modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 92.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
