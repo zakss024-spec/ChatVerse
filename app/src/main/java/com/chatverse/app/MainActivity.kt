@@ -774,6 +774,7 @@ private fun applyAccentColor(context: Context, color: Color) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ChatVerseUpdateNotifications.schedule(this)
         val themePrefs = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
         LiquidGlassState.enabled = themePrefs.getBoolean("liquid_glass_enabled", false)
         if (LiquidGlassState.enabled) {
