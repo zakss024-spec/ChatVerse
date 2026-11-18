@@ -89,31 +89,9 @@ launch_status=$?
 printf '%s\n' "$launch_output"
 
 # On heavily loaded hosted emulators, am start -W may time out even though
-# ActivityTaskManager subsequently resumes the requested activity. Verify the
-# actual foreground state below instead of treating the wait timeout alone as
-# an app failure.
-if [ "$launch_status" -ne 0 ] && ! printf '%s\n' "$launch_output" | grep -qE '^Status: timeout
-app_pid="$(adb shell pidof com.chatverse.app 2>/dev/null | tr -d '\r' || true)"
-if [ -z "$app_pid" ]; then
-  echo "ChatVerse process was not observed after foreground launch."
-  capture_diagnostics
-  exit 1
-fi
-
-sleep 5
-capture_diagnostics
-if grep -E "Process: com\\.chatverse\\.app|ANR in com\\.chatverse\\.app" emulator-logcat.txt; then
-  echo "App-specific fatal error or ANR detected."
-  exit 1
-fi
-
-adb_retry adb exec-out screencap -p > chatverse-preview.png
-capture_status=$?
-if [ "$capture_status" -ne 0 ] || [ ! -s chatverse-preview.png ]; then
-  echo "Could not capture emulator screenshot through adb exec-out."
-  exit 1
-fi
-; then
+# ActivityTaskManager subsequently resumes the requested activity. Allow only
+# that specific timeout; all other launch command failures remain fatal.
+if [ "$launch_status" -ne 0 ] && ! printf '%s\n' "$launch_output" | grep -qE '^Status: timeout$'; then
   echo "ChatVerse activity launch command failed (exit=$launch_status)."
   capture_diagnostics
   exit 1
