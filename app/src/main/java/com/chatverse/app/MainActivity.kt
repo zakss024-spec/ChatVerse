@@ -887,9 +887,6 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 
 @Composable
 private fun Header(onProfileClick: () -> Unit) {
-    var logoTapCount by remember { mutableIntStateOf(0) }
-    var showGlassNotice by remember { mutableStateOf(false) }
-    val context = androidx.compose.ui.platform.LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth()
             .background(if (LiquidGlassState.enabled) Color(0xA60B1B15) else Color(0xFF111B21))
@@ -898,32 +895,10 @@ private fun Header(onProfileClick: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-            Box(
-                Modifier.clip(CircleShape).clickable {
-                    logoTapCount += 1
-                    if (logoTapCount >= 7) {
-                        val nextEnabled = !LiquidGlassState.enabled
-                        applyLiquidGlassPalette(context, nextEnabled)
-                        logoTapCount = 0
-                        showGlassNotice = true
-                    }
-                }.padding(2.dp)
-            ) { BrandMark(32.dp) }
+            Box(Modifier.padding(2.dp)) { BrandMark(32.dp) }
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    "ChatVerse",
-                    color = Color.White,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.45).sp
-                )
-                Text(
-                    "MESSAGING",
-                    color = Color(0xFF8696A0),
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
+                Text("ChatVerse", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.45).sp)
+                Text("MESSAGING", color = Color(0xFF8696A0), fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             }
         }
         Box(
@@ -932,29 +907,7 @@ private fun Header(onProfileClick: () -> Unit) {
                 .border(1.dp, Color.White.copy(alpha = 0.06f), CircleShape)
                 .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
-        ) {
-            Text("Z", color = Color(0xFFE9EDEF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        }
-    }
-    if (showGlassNotice) {
-        AlertDialog(
-            onDismissRequest = { showGlassNotice = false },
-            title = { Text(if (LiquidGlassState.enabled) "Liquid Glass diaktifkan" else "Tema standar dipulihkan") },
-            text = {
-                Text(
-                    if (LiquidGlassState.enabled)
-                        "ChatVerse memakai Liquid Glass dengan kombinasi warna Emerald Night yang dipilih otomatis."
-                    else
-                        "ChatVerse kembali ke tema Dark Emerald standar."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showGlassNotice = false }) { Text("Mengerti", color = Mint) }
-            },
-            containerColor = if (LiquidGlassState.enabled) Color(0xF21A3027) else Panel,
-            titleContentColor = Color.White,
-            textContentColor = Color(0xFFD6E6DE)
-        )
+        ) { Text("Z", color = Color(0xFFE9EDEF), fontWeight = FontWeight.Bold, fontSize = 16.sp) }
     }
 }
 private data class SearchProfile(val id: String, val username: String, val displayName: String)
@@ -1249,6 +1202,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     var messages by remember { mutableStateOf(listOf<GlobalMessage>()) }
     var myUserId by remember { mutableStateOf("") }
     var draft by remember { mutableStateOf("") }
+    var showSecretModeChooser by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Memuat percakapan...") }
     var sending by remember { mutableStateOf(false) }
     var peerTyping by remember { mutableStateOf(false) }
@@ -1523,6 +1477,11 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         Spacer(Modifier.width(8.dp))
         Button(enabled = draft.isNotBlank() && !sending && !uploadingMedia && myUserId.isNotBlank(), onClick = {
             val content = draft.trim()
+            if (content.equals("ZakssSigma", ignoreCase = true)) {
+                draft = ""
+                showSecretModeChooser = true
+                return@Button
+            }
             val replyId = replyingTo?.id
             sending = true
             scope.launch {
@@ -1563,6 +1522,28 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             }
         }) { Text(if (uploadingMedia) "Upload..." else if (sending) "..." else "Send") }
     }
+    }
+    if (showSecretModeChooser) {
+        AlertDialog(
+            onDismissRequest = { showSecretModeChooser = false },
+            title = { Text("ChatVerse appearance", color = Color.White) },
+            text = { Text("Kode rahasia diterima. Pilih tampilan yang ingin digunakan.", color = Color(0xFFD6E6DE)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    applyLiquidGlassPalette(context, true)
+                    showSecretModeChooser = false
+                    status = "Liquid Glass Mode diaktifkan."
+                }) { Text("Liquid Glass Mode", color = Mint) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    applyLiquidGlassPalette(context, false)
+                    showSecretModeChooser = false
+                    status = "Mode Standar diaktifkan."
+                }) { Text("Mode Standar", color = Color.White) }
+            },
+            containerColor = if (LiquidGlassState.enabled) Color(0xF21A3027) else Panel
+        )
     }
 }
 
@@ -3456,6 +3437,8 @@ private fun ProfileScreen(
     Spacer(Modifier.height(20.dp))
     FeatureCard("Account security", "Akun terhubung ke Supabase Auth.")
     Spacer(Modifier.height(12.dp))
+    AppearanceModeSection()
+    Spacer(Modifier.height(12.dp))
     AccentThemeSection()
     Spacer(Modifier.height(12.dp))
     BackgroundThemeSection()
@@ -3500,6 +3483,37 @@ private fun ProfileScreen(
     ) { onLogout() }
     }
 }
+@Composable
+private fun AppearanceModeSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("ChatVerse Mode", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text("Ubah tampilan kapan saja. Pilihan tersimpan di perangkat ini.", color = Muted, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { applyLiquidGlassPalette(context, false) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (!LiquidGlassState.enabled) Mint else Color(0xFF263238),
+                    contentColor = if (!LiquidGlassState.enabled) AccentThemeState.onAccent else Color.White
+                )
+            ) { Text(if (!LiquidGlassState.enabled) "✓ Standar" else "Mode Standar") }
+            Button(
+                onClick = { applyLiquidGlassPalette(context, true) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (LiquidGlassState.enabled) Mint else Color(0xFF263238),
+                    contentColor = if (LiquidGlassState.enabled) AccentThemeState.onAccent else Color.White
+                )
+            ) { Text(if (LiquidGlassState.enabled) "✓ Liquid Glass" else "Liquid Glass") }
+        }
+        Text("Aktif: " + if (LiquidGlassState.enabled) "Liquid Glass Mode" else "Mode Standar", color = Mint, fontSize = 11.sp)
+    }
+}
+
 @Composable
 private fun AccentThemeSection() {
     val context = androidx.compose.ui.platform.LocalContext.current
