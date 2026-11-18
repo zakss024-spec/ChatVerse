@@ -696,7 +696,7 @@ private fun openTikTokProfile(context: Context, username: String) {
 
 private val Night = Color(0xFF000000)
 private val Panel: Color
-    get() = if (LiquidGlassState.enabled) Color(0xA61B332A) else Color(0xFF101214)
+    get() = if (LiquidGlassState.enabled) Color(0xE62B2B2B) else Color(0xFF101214)
 private object AppearanceState {
     var background by mutableStateOf(Color(0xFF000000))
 }
@@ -706,9 +706,11 @@ private object LiquidGlassState {
 private fun applyLiquidGlassPalette(context: Context, enabled: Boolean) {
     LiquidGlassState.enabled = enabled
     if (enabled) {
-        AppearanceState.background = Color(0xFF07110E)
-        AccentThemeState.accent = Color(0xFF7CF7C2)
+        // Secret appearance: near-black canvas, charcoal surfaces, lavender active controls.
+        AppearanceState.background = Color(0xFF101010)
+        AccentThemeState.accent = Color(0xFFD9B8F5)
     } else {
+        // Original standard ChatVerse palette remains unchanged.
         AppearanceState.background = Color(0xFF000000)
         AccentThemeState.accent = Color(0xFF68E5C1)
     }
@@ -2307,8 +2309,9 @@ private fun AnimatedActionButton(
         modifier = modifier
             .height(48.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .background(Mint)
+            .border(if (LiquidGlassState.enabled) 1.dp else 0.dp, Color.White.copy(alpha = if (LiquidGlassState.enabled) 0.18f else 0f), RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -2328,8 +2331,9 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
     Box(
         modifier = Modifier
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .background(if (enabled) Mint else Mint.copy(alpha = 0.35f))
+            .border(if (LiquidGlassState.enabled) 1.dp else 0.dp, Color.White.copy(alpha = if (LiquidGlassState.enabled) 0.16f else 0f), RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .clickable(enabled = enabled, interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 13.dp),
         contentAlignment = Alignment.Center
@@ -3742,22 +3746,75 @@ private fun BottomNavigationBar(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth()
-            .background(if (LiquidGlassState.enabled) Color(0xB30B1B15) else Color(0xFF111B21))
-            .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.07f)),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    if (LiquidGlassState.enabled) {
         Row(
-            Modifier.fillMaxWidth().semantics { selectableGroup() }.padding(vertical = 5.dp),
+            modifier = modifier.fillMaxWidth(0.92f)
+                .shadow(18.dp, RoundedCornerShape(34.dp))
+                .clip(RoundedCornerShape(34.dp))
+                .background(Brush.horizontalGradient(listOf(Color(0xF02B2B2B), Color(0xE91A1A1A), Color(0xF02B2B2B))))
+                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(34.dp))
+                .padding(horizontal = 7.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
-            NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
-            NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
-            NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
-            NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth().semantics { selectableGroup() }, verticalAlignment = Alignment.CenterVertically) {
+                NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
+            }
         }
+    } else {
+        Row(
+            modifier = modifier.fillMaxWidth().background(Color(0xFF111B21))
+                .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.07f)),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(Modifier.fillMaxWidth().semantics { selectableGroup() }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
+                NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavigationItem(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    index: Int,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val active = selected == index
+    val secretMode = LiquidGlassState.enabled
+    val activeTint = if (secretMode) Color(0xFFEBD7FF) else Color(0xFF25D366)
+    val inactiveTint = if (secretMode) Color(0xFFE2E2E2) else Color(0xFF8696A0)
+    val tint by animateColorAsState(if (active) activeTint else inactiveTint, tween(220), label = "navTint")
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, spring(stiffness = 420f, dampingRatio = 0.78f), label = "navPressScale")
+    Column(
+        modifier = modifier.fillMaxWidth().height(if (secretMode) 58.dp else 62.dp)
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .clip(RoundedCornerShape(if (secretMode) 22.dp else 12.dp))
+            .semantics { this.selected = active }
+            .clickable(interactionSource = interactionSource, indication = null, role = Role.Tab) { onSelect(index) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            Modifier.clip(RoundedCornerShape(if (secretMode) 22.dp else 18.dp))
+                .background(when { !active -> Color.Transparent; secretMode -> Color(0xFF59436C); else -> Color(0xFF123D2C) })
+                .padding(horizontal = if (secretMode) 12.dp else 15.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) { Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp)) }
+        Spacer(Modifier.height(3.dp))
+        Text(label, color = tint, fontSize = if (secretMode) 8.sp else 9.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
     }
 }
 
