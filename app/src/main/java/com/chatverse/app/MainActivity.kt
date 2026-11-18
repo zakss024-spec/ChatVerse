@@ -780,14 +780,14 @@ class MainActivity : ComponentActivity() {
         val themePrefs = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
         LiquidGlassState.enabled = themePrefs.getBoolean("liquid_glass_enabled", false)
         if (LiquidGlassState.enabled) {
-            AppearanceState.background = Color(0xFF07110E)
-            AccentThemeState.accent = Color(0xFF7CF7C2)
+            AppearanceState.background = Color(0xFF101010)
+            AccentThemeState.accent = Color(0xFFD9B8F5)
         } else {
             themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
         }
         if (LiquidGlassState.enabled) {
-            AppearanceState.background = Color(0xFF07110E)
-            AccentThemeState.accent = Color(0xFF7CF7C2)
+            AppearanceState.background = Color(0xFF101010)
+            AccentThemeState.accent = Color(0xFFD9B8F5)
         } else if (!themePrefs.getBoolean("black_glass_default_v1", false)) {
             AppearanceState.background = Color(0xFF000000)
             themePrefs.edit()
@@ -881,7 +881,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 onSelect = { selectedTab = it },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 0.dp)
+                    .padding(bottom = if (LiquidGlassState.enabled) 12.dp else 0.dp)
             )
         }
     }
