@@ -844,14 +844,15 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     targetState = selectedTab,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     transitionSpec = {
+                        val movingForward = targetState > initialState
                         (androidx.compose.animation.slideInHorizontally(
-                            animationSpec = tween(280),
-                            initialOffsetX = { fullWidth -> fullWidth / 5 }
-                        ) + fadeIn(animationSpec = tween(180))) togetherWith
+                            animationSpec = tween(360, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                            initialOffsetX = { fullWidth -> if (movingForward) fullWidth else -fullWidth }
+                        ) + fadeIn(animationSpec = tween(220))) togetherWith
                             (slideOutHorizontally(
-                                animationSpec = tween(220),
-                                targetOffsetX = { fullWidth -> -fullWidth / 8 }
-                            ) + fadeOut(animationSpec = tween(150)))
+                                animationSpec = tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                targetOffsetX = { fullWidth -> if (movingForward) -fullWidth / 3 else fullWidth / 3 }
+                            ) + fadeOut(animationSpec = tween(180)))
                     },
                     label = "mainTabSlide"
                 ) { tab ->
@@ -3732,11 +3733,11 @@ private fun GlassPanelSurface(content: @Composable () -> Unit) {
 private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .clip(shape)
     .background(
-        if (LiquidGlassState.enabled) Color(0xA61B332A) else Color(0xFF1F2C34)
+        if (LiquidGlassState.enabled) Color(0xF02A2A2C) else Color(0xFF1F2C34)
     )
     .border(
-        width = if (LiquidGlassState.enabled) 1.dp else 1.dp,
-        color = if (LiquidGlassState.enabled) Color.White.copy(alpha = 0.20f) else Color(0xFF293943),
+        width = 1.dp,
+        color = if (LiquidGlassState.enabled) Color.White.copy(alpha = 0.10f) else Color(0xFF293943),
         shape = shape
     )
 
@@ -3747,16 +3748,42 @@ private fun BottomNavigationBar(
     modifier: Modifier = Modifier
 ) {
     if (LiquidGlassState.enabled) {
-        Row(
-            modifier = modifier.fillMaxWidth(0.92f)
-                .shadow(18.dp, RoundedCornerShape(34.dp))
+        BoxWithConstraints(
+            modifier = modifier.fillMaxWidth(0.88f)
+                .shadow(22.dp, RoundedCornerShape(34.dp))
                 .clip(RoundedCornerShape(34.dp))
-                .background(Brush.horizontalGradient(listOf(Color(0xF02B2B2B), Color(0xE91A1A1A), Color(0xF02B2B2B))))
-                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(34.dp))
-                .padding(horizontal = 7.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color(0xE82A2A2D), Color(0xF5121214), Color(0xE82A2A2D))
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(34.dp))
+                .padding(horizontal = 6.dp, vertical = 6.dp)
         ) {
-            Row(Modifier.fillMaxWidth().semantics { selectableGroup() }, verticalAlignment = Alignment.CenterVertically) {
+            val tabWidth = maxWidth / 5
+            val indicatorOffset by animateDpAsState(
+                targetValue = tabWidth * selected.coerceIn(0, 4),
+                animationSpec = tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                label = "glassNavIndicator"
+            )
+            Box(
+                Modifier.offset(x = indicatorOffset)
+                    .width(tabWidth)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0x665B456C))
+                    .border(
+                        1.dp,
+                        androidx.compose.ui.graphics.Brush.sweepGradient(
+                            listOf(Color(0xFFFFB36B), Color(0xFFD8A7FF), Color(0xFF8EDBFF), Color(0xFFD8A7FF), Color(0xFFFFB36B))
+                        ),
+                        RoundedCornerShape(28.dp)
+                    )
+            )
+            Row(
+                Modifier.fillMaxWidth().height(48.dp).semantics { selectableGroup() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
                 NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
                 NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
@@ -3809,7 +3836,7 @@ private fun NavigationItem(
     ) {
         Box(
             Modifier.clip(RoundedCornerShape(if (secretMode) 22.dp else 18.dp))
-                .background(when { !active -> Color.Transparent; secretMode -> Color(0xFF59436C); else -> Color(0xFF123D2C) })
+                .background(when { !active || secretMode -> Color.Transparent; else -> Color(0xFF123D2C) })
                 .padding(horizontal = if (secretMode) 12.dp else 15.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center
         ) { Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp)) }
