@@ -7,19 +7,20 @@ import org.junit.Test
 
 class AuthValidationTest {
     @Test
-    fun normalizeUsernameLowercasesAndRemovesUnsupportedCharacters() {
-        assertEquals("zakssx_1.test", AuthValidation.normalizeUsername("  ZakssX_1.Test ! "))
+    fun normalizeUsernamePreservesCaseAndRemovesUnsupportedCharacters() {
+        assertEquals("ZakssX_1.Test", AuthValidation.normalizeUsername("  ZakssX_1.Test ! "))
     }
 
     @Test
-    fun normalizeUsernameLimitsLengthToThirtyCharacters() {
-        assertEquals("a".repeat(30), AuthValidation.normalizeUsername("A".repeat(45)))
+    fun normalizeUsernamePreservesUppercaseWhenLimitingLength() {
+        assertEquals("A".repeat(30), AuthValidation.normalizeUsername("A".repeat(45)))
     }
 
     @Test
     fun validUsernameAcceptsAllowedCharactersAndLength() {
         assertTrue(AuthValidation.isValidUsername("abc"))
         assertTrue(AuthValidation.isValidUsername("zakss_x.9"))
+        assertTrue(AuthValidation.isValidUsername("Zakss_X.9"))
         assertTrue(AuthValidation.isValidUsername("a".repeat(30)))
     }
 
@@ -28,7 +29,7 @@ class AuthValidationTest {
         assertFalse(AuthValidation.isValidUsername("ab"))
         assertFalse(AuthValidation.isValidUsername("a".repeat(31)))
         assertFalse(AuthValidation.isValidUsername("bad name"))
-        assertFalse(AuthValidation.isValidUsername("UpperCase"))
+        assertTrue(AuthValidation.isValidUsername("UpperCase"))
     }
 
     @Test
