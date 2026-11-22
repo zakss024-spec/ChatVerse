@@ -3750,20 +3750,35 @@ private fun BottomNavigationBar(
     if (LiquidGlassState.enabled) {
         BoxWithConstraints(
             modifier = modifier.fillMaxWidth(0.88f)
-                .shadow(22.dp, RoundedCornerShape(34.dp))
+                .shadow(26.dp, RoundedCornerShape(34.dp), clip = false)
                 .clip(RoundedCornerShape(34.dp))
                 .background(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        listOf(Color(0xE82A2A2D), Color(0xF5121214), Color(0xE82A2A2D))
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.White.copy(alpha = 0.20f),
+                            0.16f to Color(0xE52C2C31),
+                            0.62f to Color(0xF018181C),
+                            1.0f to Color(0xF50C0C10)
+                        )
                     )
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(34.dp))
+                .border(
+                    1.dp,
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.42f),
+                            Color.White.copy(alpha = 0.13f),
+                            Color.White.copy(alpha = 0.07f)
+                        )
+                    ),
+                    RoundedCornerShape(34.dp)
+                )
                 .padding(horizontal = 6.dp, vertical = 6.dp)
         ) {
             val tabWidth = maxWidth / 5
             val indicatorOffset by animateDpAsState(
                 targetValue = tabWidth * selected.coerceIn(0, 4),
-                animationSpec = tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                animationSpec = tween(460, easing = androidx.compose.animation.core.FastOutSlowInEasing),
                 label = "glassNavIndicator"
             )
             Box(
@@ -3771,11 +3786,21 @@ private fun BottomNavigationBar(
                     .width(tabWidth)
                     .height(48.dp)
                     .clip(RoundedCornerShape(28.dp))
-                    .background(Color(0x665B456C))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0x887C6590), Color(0x665B456C), Color(0x55433250))
+                        )
+                    )
                     .border(
                         1.dp,
-                        androidx.compose.ui.graphics.Brush.sweepGradient(
-                            listOf(Color(0xFFFFB36B), Color(0xFFD8A7FF), Color(0xFF8EDBFF), Color(0xFFD8A7FF), Color(0xFFFFB36B))
+                        Brush.sweepGradient(
+                            listOf(
+                                Color(0xFFFFC58F),
+                                Color(0xFFD8A7FF),
+                                Color(0xFF9BE4FF),
+                                Color(0xFFD8A7FF),
+                                Color(0xFFFFC58F)
+                            )
                         ),
                         RoundedCornerShape(28.dp)
                     )
