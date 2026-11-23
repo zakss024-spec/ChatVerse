@@ -1,5 +1,11 @@
 package com.chatverse.app
 
+import com.styropyr0.prismal.components.LocalPrismalBottomTabHighlightedIndex
+import com.styropyr0.prismal.components.PrismalGlassBottomTab
+import com.styropyr0.prismal.components.PrismalGlassBottomTabs
+import com.styropyr0.prismal.sources.prismalGlassLayer
+import com.styropyr0.prismal.sources.rememberPrismalGlassLayer
+
 import android.os.Bundle
 import android.content.Context
 import android.content.Intent
@@ -822,6 +828,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
+    val liquidGlassBackdrop = rememberPrismalGlassLayer()
     var selectedTab by remember { mutableIntStateOf(0) }
     var pendingChatUsername by remember { mutableStateOf<String?>(null) }
 
@@ -838,6 +845,10 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(start = 0.dp, end = 0.dp, top = 0.dp, bottom = 76.dp)
+                    .then(
+                        if (LiquidGlassState.enabled) Modifier.prismalGlassLayer(liquidGlassBackdrop)
+                        else Modifier
+                    )
             ) {
                 Header(onProfileClick = { selectedTab = 4 })
                 AnimatedContent(
@@ -880,6 +891,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
             BottomNavigationBar(
                 selected = selectedTab,
                 onSelect = { selectedTab = it },
+                backdrop = liquidGlassBackdrop,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = if (LiquidGlassState.enabled) 12.dp else 0.dp)
@@ -3745,72 +3757,35 @@ private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
 private fun BottomNavigationBar(
     selected: Int,
     onSelect: (Int) -> Unit,
+    backdrop: com.styropyr0.prismal.PrismalBackdrop,
     modifier: Modifier = Modifier
 ) {
     if (LiquidGlassState.enabled) {
-        BoxWithConstraints(
-            modifier = modifier.fillMaxWidth(0.92f)
-                .shadow(20.dp, RoundedCornerShape(34.dp), clip = false)
-                .clip(RoundedCornerShape(34.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color(0xB83A3942),
-                            0.42f to Color(0xA51D1C24),
-                            1.0f to Color(0x99100F16)
-                        )
-                    )
-                )
-                .border(
-                    0.7.dp,
-                    Color(0x26EADFFF),
-                    RoundedCornerShape(34.dp)
-                )
-                .padding(horizontal = 6.dp, vertical = 6.dp)
+        PrismalGlassBottomTabs(
+            selectedTabIndex = { selected },
+            onTabSelected = onSelect,
+            backdrop = backdrop,
+            tabsCount = 5,
+            modifier = modifier.fillMaxWidth(0.92f).height(68.dp),
+            adaptiveLuminance = true,
+            tintDropletContent = false,
+            specular = { null },
+            blurRadius = 7.dp,
+            refractionHeight = 15.dp,
+            refractionAmount = 22.dp,
+            dropletRefractionHeight = 12.dp,
+            dropletRefractionAmount = 12.dp,
+            dropletChromaticAberration = 0.32f,
+            dropletContentScaleX = 0.94f,
+            dropletContentScaleY = 0.94f,
+            pressGlow = 0.28f,
+            renderWithLowOverhead = true
         ) {
-            val tabWidth = maxWidth / 5
-            val indicatorOffset by animateDpAsState(
-                targetValue = tabWidth * selected.coerceIn(0, 4),
-                animationSpec = spring(
-                    dampingRatio = 0.82f,
-                    stiffness = 280f
-                ),
-                label = "glassNavIndicator"
-            )
-            Box(
-                Modifier.offset(x = indicatorOffset)
-                    .width(tabWidth)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0x887C6590), Color(0x665B456C), Color(0x55433250))
-                        )
-                    )
-                    .border(
-                        1.dp,
-                        Brush.sweepGradient(
-                            listOf(
-                                Color(0xFFFFC58F),
-                                Color(0xFFD8A7FF),
-                                Color(0xFF9BE4FF),
-                                Color(0xFFD8A7FF),
-                                Color(0xFFFFC58F)
-                            )
-                        ),
-                        RoundedCornerShape(28.dp)
-                    )
-            )
-            Row(
-                Modifier.fillMaxWidth().height(48.dp).semantics { selectableGroup() },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
-            }
+            PrismalNavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, onSelect)
+            PrismalNavigationItem("Updates", Icons.Rounded.Update, 1, onSelect)
+            PrismalNavigationItem("Communities", Icons.Rounded.Groups, 2, onSelect)
+            PrismalNavigationItem("Calls", Icons.Rounded.Call, 3, onSelect)
+            PrismalNavigationItem("Settings", Icons.Rounded.Settings, 4, onSelect)
         }
     } else {
         Row(
@@ -3826,6 +3801,37 @@ private fun BottomNavigationBar(
                 NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
             }
         }
+    }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.PrismalNavigationItem(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    index: Int,
+    onSelect: (Int) -> Unit
+) {
+    val highlightedIndex = LocalPrismalBottomTabHighlightedIndex.current()
+    val active = highlightedIndex == index
+    val tint by animateColorAsState(
+        targetValue = if (active) Color(0xFFA9F5D0) else Color(0xFFC4CFD0).copy(alpha = 0.82f),
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
+        label = "prismalTabTint"
+    )
+    PrismalGlassBottomTab(onClick = { onSelect(index) }) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 8.sp,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }
 
