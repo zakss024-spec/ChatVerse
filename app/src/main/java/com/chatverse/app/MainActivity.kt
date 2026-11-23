@@ -889,7 +889,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (imeVisible) 0.dp else 92.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (imeVisible || LiquidGlassState.enabled) 0.dp else 92.dp)
             ) {
                 Header(onProfileClick = { selectedTab = 4 })
                 AnimatedContent(
