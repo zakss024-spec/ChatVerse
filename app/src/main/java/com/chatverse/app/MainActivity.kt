@@ -931,7 +931,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                         selectedIndex = selectedTab,
                         onSelect = { selectedTab = it },
                         accent = Mint,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                     )
                 } else {
                     BottomNavigationBar(
