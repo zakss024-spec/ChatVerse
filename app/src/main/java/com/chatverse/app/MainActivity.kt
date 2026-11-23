@@ -3799,7 +3799,6 @@ private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     )
 
 @Composable
-@Composable
 private fun BottomNavigationBar(
     selected: Int,
     onSelect: (Int) -> Unit,
