@@ -846,11 +846,11 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     transitionSpec = {
                         val movingForward = targetState > initialState
                         (androidx.compose.animation.slideInHorizontally(
-                            animationSpec = tween(360, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                            animationSpec = tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
                             initialOffsetX = { fullWidth -> if (movingForward) fullWidth else -fullWidth }
                         ) + fadeIn(animationSpec = tween(220))) togetherWith
                             (slideOutHorizontally(
-                                animationSpec = tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                animationSpec = tween(360, easing = androidx.compose.animation.core.FastOutSlowInEasing),
                                 targetOffsetX = { fullWidth -> if (movingForward) -fullWidth / 3 else fullWidth / 3 }
                             ) + fadeOut(animationSpec = tween(180)))
                     },
@@ -3749,28 +3749,21 @@ private fun BottomNavigationBar(
 ) {
     if (LiquidGlassState.enabled) {
         BoxWithConstraints(
-            modifier = modifier.fillMaxWidth(0.88f)
-                .shadow(26.dp, RoundedCornerShape(34.dp), clip = false)
+            modifier = modifier.fillMaxWidth(0.92f)
+                .shadow(20.dp, RoundedCornerShape(34.dp), clip = false)
                 .clip(RoundedCornerShape(34.dp))
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.White.copy(alpha = 0.20f),
-                            0.16f to Color(0xE52C2C31),
-                            0.62f to Color(0xF018181C),
-                            1.0f to Color(0xF50C0C10)
+                            0.0f to Color(0xB83A3942),
+                            0.42f to Color(0xA51D1C24),
+                            1.0f to Color(0x99100F16)
                         )
                     )
                 )
                 .border(
-                    1.dp,
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.42f),
-                            Color.White.copy(alpha = 0.13f),
-                            Color.White.copy(alpha = 0.07f)
-                        )
-                    ),
+                    0.7.dp,
+                    Color(0x26EADFFF),
                     RoundedCornerShape(34.dp)
                 )
                 .padding(horizontal = 6.dp, vertical = 6.dp)
@@ -3778,7 +3771,10 @@ private fun BottomNavigationBar(
             val tabWidth = maxWidth / 5
             val indicatorOffset by animateDpAsState(
                 targetValue = tabWidth * selected.coerceIn(0, 4),
-                animationSpec = tween(460, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                animationSpec = spring(
+                    dampingRatio = 0.82f,
+                    stiffness = 280f
+                ),
                 label = "glassNavIndicator"
             )
             Box(
