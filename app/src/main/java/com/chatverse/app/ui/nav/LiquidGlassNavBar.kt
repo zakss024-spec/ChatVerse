@@ -124,7 +124,27 @@ fun LiquidGlassNavBar(
         )
 
         Row(
-            modifier = Modifier.fillMaxSize().selectableGroup(),
+            modifier = Modifier.fillMaxSize().selectableGroup()
+                .pointerInput(count, index, itemWidthPx) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            dragIndicatorX = itemWidthPx * index
+                            isDragging = true
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            val maxX = (size.width.toFloat() - itemWidthPx).coerceAtLeast(0f)
+                            dragIndicatorX = (dragIndicatorX + dragAmount).coerceIn(0f, maxX)
+                            change.consume()
+                        },
+                        onDragEnd = {
+                            val target = (dragIndicatorX / itemWidthPx.coerceAtLeast(1f))
+                                .roundToInt().coerceIn(0, count - 1)
+                            isDragging = false
+                            onSelect(target)
+                        },
+                        onDragCancel = { isDragging = false }
+                    )
+                },
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -138,28 +158,6 @@ fun LiquidGlassNavBar(
                 )
             }
         }
-    }
-    .pointerInput(count, index, itemWidthPx) {
-        detectHorizontalDragGestures(
-            onDragStart = {
-                dragIndicatorX = itemWidthPx * index
-                isDragging = true
-            },
-            onHorizontalDrag = { change, dragAmount ->
-                val maxX = (size.width.toFloat() - itemWidthPx).coerceAtLeast(0f)
-                dragIndicatorX = (dragIndicatorX + dragAmount).coerceIn(0f, maxX)
-                change.consume()
-            },
-            onDragEnd = {
-                val target = (dragIndicatorX / itemWidthPx.coerceAtLeast(1f))
-                    .roundToInt().coerceIn(0, count - 1)
-                isDragging = false
-                onSelect(target)
-            },
-            onDragCancel = {
-                isDragging = false
-            }
-        )
     }
 }
 
