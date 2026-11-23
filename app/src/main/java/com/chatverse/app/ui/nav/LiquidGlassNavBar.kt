@@ -23,6 +23,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +34,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,12 +68,14 @@ fun LiquidGlassNavBar(
     val count = destinations.size
     val index = selectedIndex.coerceIn(0, count - 1)
     val barShape = RoundedCornerShape(32.dp)
-    val pillShape = RoundedCornerShape(26.dp)
+    val pillShape = RoundedCornerShape(28.dp)
+    var dragIndicatorX by remember { mutableFloatStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .height(76.dp)
             .shadow(
                 elevation = 22.dp,
                 shape = barShape,
@@ -84,6 +93,8 @@ fun LiquidGlassNavBar(
             .padding(6.dp)
     ) {
         val itemWidth = maxWidth / count
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val itemWidthPx = with(density) { itemWidth.toPx() }
         val indicatorX by animateDpAsState(
             targetValue = itemWidth * index,
             animationSpec = spring(
@@ -95,7 +106,12 @@ fun LiquidGlassNavBar(
 
         Box(
             modifier = Modifier
-                .offset(x = indicatorX)
+                .offset {
+                    IntOffset(
+                        x = if (isDragging) dragIndicatorX.roundToInt() else with(density) { indicatorX.roundToPx() },
+                        y = 0
+                    )
+                }
                 .width(itemWidth)
                 .fillMaxHeight()
                 .clip(pillShape)
@@ -122,6 +138,28 @@ fun LiquidGlassNavBar(
                 )
             }
         }
+    }
+    .pointerInput(count, index, itemWidthPx) {
+        detectHorizontalDragGestures(
+            onDragStart = {
+                dragIndicatorX = itemWidthPx * index
+                isDragging = true
+            },
+            onHorizontalDrag = { change, dragAmount ->
+                val maxX = (size.width.toFloat() - itemWidthPx).coerceAtLeast(0f)
+                dragIndicatorX = (dragIndicatorX + dragAmount).coerceIn(0f, maxX)
+                change.consume()
+            },
+            onDragEnd = {
+                val target = (dragIndicatorX / itemWidthPx.coerceAtLeast(1f))
+                    .roundToInt().coerceIn(0, count - 1)
+                isDragging = false
+                onSelect(target)
+            },
+            onDragCancel = {
+                isDragging = false
+            }
+        )
     }
 }
 
@@ -165,13 +203,13 @@ private fun NavBarItem(
             imageVector = destination.icon,
             contentDescription = destination.label,
             tint = tint,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(24.dp)
         )
         Spacer(Modifier.height(2.dp))
         Text(
             text = destination.label,
             color = tint,
-            fontSize = 10.sp,
+            fontSize = 10.5.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
