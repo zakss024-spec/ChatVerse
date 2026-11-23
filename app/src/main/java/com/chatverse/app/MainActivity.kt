@@ -1,10 +1,8 @@
 package com.chatverse.app
 
-import com.styropyr0.prismal.components.LocalPrismalBottomTabHighlightedIndex
-import com.styropyr0.prismal.components.PrismalGlassBottomTab
-import com.styropyr0.prismal.components.PrismalGlassBottomTabs
-import com.styropyr0.prismal.sources.prismalGlassLayer
-import com.styropyr0.prismal.sources.rememberPrismalGlassLayer
+import com.chatverse.app.ui.nav.LiquidGlassNavBar
+import com.chatverse.app.ui.nav.NavDestination
+import com.chatverse.app.ui.nav.tabTransition
 
 import android.os.Bundle
 import android.content.Context
@@ -39,6 +37,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -54,6 +53,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
@@ -109,6 +110,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -202,7 +204,15 @@ private suspend fun openChatMedia(context: Context, accessToken: String, path: S
         }
     }
 
-private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null, returnRepresentation: Boolean = false): Pair<Int, String> =
+private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null, returnRepresentation: Boolean = false): Pair<Int, String> {
+    val currentToken = SessionRefresh.accessToken.ifBlank { token }
+    val first = supabaseCallOnce(path, currentToken, method, payload, returnRepresentation)
+    if (first.first != 401) return first
+    val renewed = SessionRefresh.refresh(currentToken) ?: return first
+    return supabaseCallOnce(path, renewed, method, payload, returnRepresentation)
+}
+
+private suspend fun supabaseCallOnce(path: String, token: String, method: String = "GET", payload: JSONObject? = null, returnRepresentation: Boolean = false): Pair<Int, String> =
     withContext(Dispatchers.IO) {
         val builder = Request.Builder().url(BuildConfig.SUPABASE_URL + path)
             .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
@@ -315,6 +325,31 @@ private fun AuthGate() {
     var updateCheckFinished by remember { mutableStateOf(accessToken == null) }
     var availableUpdate by remember { mutableStateOf<ChatVerseUpdateInfo?>(null) }
     var updateDismissed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        SessionRefresh.onRenewed = { access, refresh ->
+            runCatching {
+                sessionStore.save(access, refresh)
+                restoredSession = StoredSession(access, refresh)
+            }.onFailure {
+                android.util.Log.e("ChatVerseAuth", "Unable to persist refreshed session", it)
+            }
+        }
+        SessionRefresh.onInvalid = {
+            sessionStore.clear()
+            restoredSession = null
+            accessToken = null
+        }
+    }
+    LaunchedEffect(accessToken, restoredSession?.refreshToken) {
+        val currentAccess = accessToken
+        val currentRefresh = restoredSession?.refreshToken.orEmpty()
+        if (!currentAccess.isNullOrBlank()) {
+            SessionRefresh.set(currentAccess, currentRefresh)
+        } else {
+            SessionRefresh.clear()
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (accessToken != null) {
@@ -433,6 +468,7 @@ private fun AuthGate() {
         }
         ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
             ChatVerseAnalytics.reset()
+            SessionRefresh.clear()
             sessionStore.clear()
             restoredSession = null
             accessToken = null
@@ -828,9 +864,18 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
-    val liquidGlassBackdrop = rememberPrismalGlassLayer()
     var selectedTab by remember { mutableIntStateOf(0) }
     var pendingChatUsername by remember { mutableStateOf<String?>(null) }
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val navDestinations = remember {
+        listOf(
+            NavDestination("Chats", Icons.Rounded.ChatBubbleOutline),
+            NavDestination("Updates", Icons.Rounded.Update),
+            NavDestination("Communities", Icons.Rounded.Groups),
+            NavDestination("Calls", Icons.Rounded.Call),
+            NavDestination("Settings", Icons.Rounded.Settings)
+        )
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -844,27 +889,13 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 0.dp, end = 0.dp, top = 0.dp, bottom = 76.dp)
-                    .then(
-                        if (LiquidGlassState.enabled) Modifier.prismalGlassLayer(liquidGlassBackdrop)
-                        else Modifier
-                    )
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (imeVisible) 0.dp else 92.dp)
             ) {
                 Header(onProfileClick = { selectedTab = 4 })
                 AnimatedContent(
                     targetState = selectedTab,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    transitionSpec = {
-                        val movingForward = targetState > initialState
-                        (androidx.compose.animation.slideInHorizontally(
-                            animationSpec = tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                            initialOffsetX = { fullWidth -> if (movingForward) fullWidth else -fullWidth }
-                        ) + fadeIn(animationSpec = tween(220))) togetherWith
-                            (slideOutHorizontally(
-                                animationSpec = tween(360, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                                targetOffsetX = { fullWidth -> if (movingForward) -fullWidth / 3 else fullWidth / 3 }
-                            ) + fadeOut(animationSpec = tween(180)))
-                    },
+                    transitionSpec = { tabTransition() },
                     label = "mainTabSlide"
                 ) { tab ->
                     when (tab) {
@@ -888,14 +919,28 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                 }
             }
 
-            BottomNavigationBar(
-                selected = selectedTab,
-                onSelect = { selectedTab = it },
-                backdrop = liquidGlassBackdrop,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = if (LiquidGlassState.enabled) 12.dp else 0.dp)
-            )
+            AnimatedVisibility(
+                visible = !imeVisible,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                if (LiquidGlassState.enabled) {
+                    LiquidGlassNavBar(
+                        destinations = navDestinations,
+                        selectedIndex = selectedTab,
+                        onSelect = { selectedTab = it },
+                        accent = Mint,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+                    )
+                } else {
+                    BottomNavigationBar(
+                        selected = selectedTab,
+                        onSelect = { selectedTab = it },
+                        modifier = Modifier.padding(bottom = 0.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -3754,84 +3799,24 @@ private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     )
 
 @Composable
+@Composable
 private fun BottomNavigationBar(
     selected: Int,
     onSelect: (Int) -> Unit,
-    backdrop: com.styropyr0.prismal.PrismalBackdrop,
     modifier: Modifier = Modifier
 ) {
-    if (LiquidGlassState.enabled) {
-        PrismalGlassBottomTabs(
-            selectedTabIndex = { selected },
-            onTabSelected = onSelect,
-            backdrop = backdrop,
-            tabsCount = 5,
-            modifier = modifier.fillMaxWidth(0.92f).height(68.dp),
-            adaptiveLuminance = true,
-            tintDropletContent = false,
-            specular = { null },
-            blurRadius = 7.dp,
-            refractionHeight = 15.dp,
-            refractionAmount = 22.dp,
-            dropletRefractionHeight = 12.dp,
-            dropletRefractionAmount = 12.dp,
-            dropletChromaticAberration = 0.32f,
-            dropletContentScaleX = 0.94f,
-            dropletContentScaleY = 0.94f,
-            pressGlow = 0.28f,
-            renderWithLowOverhead = true
-        ) {
-            PrismalNavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, onSelect)
-            PrismalNavigationItem("Updates", Icons.Rounded.Update, 1, onSelect)
-            PrismalNavigationItem("Communities", Icons.Rounded.Groups, 2, onSelect)
-            PrismalNavigationItem("Calls", Icons.Rounded.Call, 3, onSelect)
-            PrismalNavigationItem("Settings", Icons.Rounded.Settings, 4, onSelect)
+    Row(
+        modifier = modifier.fillMaxWidth().background(Color(0xFF111B21))
+            .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.07f)),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(Modifier.fillMaxWidth().semantics { selectableGroup() }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
         }
-    } else {
-        Row(
-            modifier = modifier.fillMaxWidth().background(Color(0xFF111B21))
-                .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.07f)),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(Modifier.fillMaxWidth().semantics { selectableGroup() }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
-                NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.PrismalNavigationItem(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    index: Int,
-    onSelect: (Int) -> Unit
-) {
-    val highlightedIndex = LocalPrismalBottomTabHighlightedIndex.current()
-    val active = highlightedIndex == index
-    val tint by animateColorAsState(
-        targetValue = if (active) Color(0xFFA9F5D0) else Color(0xFFC4CFD0).copy(alpha = 0.82f),
-        animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
-        label = "prismalTabTint"
-    )
-    PrismalGlassBottomTab(onClick = { onSelect(index) }) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(20.dp)
-        )
-        Text(
-            text = label,
-            color = tint,
-            fontSize = 8.sp,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1
-        )
     }
 }
 
