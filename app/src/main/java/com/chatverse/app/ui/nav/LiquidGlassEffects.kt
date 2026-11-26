@@ -40,7 +40,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.drawOutline
+import androidx.compose.ui.graphics.drawscope.drawPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
@@ -148,7 +148,8 @@ private fun drawGlassSurface(
     supportsRenderBlur: Boolean,
     tint: Color,
     highlight: Float
-) = with(scope) {
+) {
+    with(scope) {
     val outline = shape.createOutline(size, layoutDirection, this)
     val clip = Path().apply { addOutline(outline) }
     val sourceCoords = backdrop?.coords
@@ -198,8 +199,8 @@ private fun drawGlassSurface(
         )
     }
 
-    drawOutline(
-        outline = outline,
+    drawPath(
+        path = clip,
         brush = Brush.linearGradient(
             colors = listOf(
                 Color.White.copy(alpha = (0.78f * highlight).coerceAtMost(1f)),
@@ -212,6 +213,7 @@ private fun drawGlassSurface(
         ),
         style = Stroke(width = 1.15.dp.toPx())
     )
+    }
 }
 
 /** Optional animated ambient background used by screens that want a more vivid glass backdrop. */
