@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
@@ -166,7 +167,7 @@ private fun drawGlassSurface(
                     size.width.roundToInt() + pad * 2,
                     size.height.roundToInt() + pad * 2
                 )
-                blurLayer.record(this, layoutDirection, expandedSize) {
+                blurLayer.record(density = this, layoutDirection = layoutDirection, size = expandedSize) {
                     translate(pad - sourceOffset.x, pad - sourceOffset.y) {
                         drawLayer(backdrop!!.layer)
                     }
