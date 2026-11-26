@@ -3,6 +3,10 @@ package com.chatverse.app
 import com.chatverse.app.ui.nav.LiquidGlassNavBar
 import com.chatverse.app.ui.nav.NavDestination
 import com.chatverse.app.ui.nav.tabTransition
+import com.chatverse.app.ui.nav.GlassBackdrop
+import com.chatverse.app.ui.nav.LiquidGlassBackground
+import com.chatverse.app.ui.nav.glassSource
+import com.chatverse.app.ui.nav.rememberGlassBackdrop
 
 import android.os.Bundle
 import android.content.Context
@@ -866,6 +870,7 @@ class MainActivity : ComponentActivity() {
 private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var pendingChatUsername by remember { mutableStateOf<String?>(null) }
+    val glassBackdrop = rememberGlassBackdrop()
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val navDestinations = remember {
         listOf(
@@ -881,16 +886,28 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
         modifier = Modifier.fillMaxSize(),
         color = AppearanceState.background
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(AppearanceState.background)
-        ) {
-            Column(
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (imeVisible || LiquidGlassState.enabled) 0.dp else 92.dp)
+                    .glassSource(glassBackdrop)
             ) {
+                if (LiquidGlassState.enabled) {
+                    LiquidGlassBackground(
+                        base = AppearanceState.background,
+                        accent = AccentThemeState.accent,
+                        modifier = Modifier.fillMaxSize(),
+                        animated = false
+                    )
+                } else {
+                    Box(Modifier.fillMaxSize().background(AppearanceState.background))
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (imeVisible || LiquidGlassState.enabled) 0.dp else 92.dp)
+                ) {
                 Header(onProfileClick = { selectedTab = 4 })
                 AnimatedContent(
                     targetState = selectedTab,
@@ -918,6 +935,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     }
                 }
             }
+            }
 
             AnimatedVisibility(
                 visible = !imeVisible,
@@ -930,7 +948,8 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                         destinations = navDestinations,
                         selectedIndex = selectedTab,
                         onSelect = { selectedTab = it },
-                        accent = Mint,
+                        accent = AccentThemeState.accent,
+                        backdrop = glassBackdrop,
                         modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                     )
                 } else {
