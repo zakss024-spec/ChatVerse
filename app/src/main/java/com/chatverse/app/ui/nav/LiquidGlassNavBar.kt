@@ -1,12 +1,12 @@
 package com.chatverse.app.ui.nav
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.snap
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -22,133 +22,180 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.roundToInt
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 data class NavDestination(val label: String, val icon: ImageVector)
 
-/** Floating glass-style navigation with a single spring-animated active indicator. */
+/**
+ * Floating true-glass navigation. The active pill is driven by an Animatable so drag
+ * updates are applied directly to the graphics layer, then spring-settled on release.
+ */
 @Composable
 fun LiquidGlassNavBar(
     destinations: List<NavDestination>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     accent: Color,
+    backdrop: GlassBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
     if (destinations.isEmpty()) return
+
     val count = destinations.size
     val index = selectedIndex.coerceIn(0, count - 1)
-    val currentIndex by rememberUpdatedState(index)
+    val latestIndex by rememberUpdatedState(index)
+    val latestOnSelect by rememberUpdatedState(onSelect)
     val barShape = RoundedCornerShape(32.dp)
     val pillShape = RoundedCornerShape(28.dp)
-    var dragIndicatorX by remember { mutableFloatStateOf(0f) }
-    var isDragging by remember { mutableStateOf(false) }
+    var dragging by remember { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(76.dp)
+            .height(78.dp)
             .shadow(
-                elevation = 22.dp,
+                elevation = 24.dp,
                 shape = barShape,
-                ambientColor = Color.Black.copy(alpha = 0.45f),
-                spotColor = Color.Black.copy(alpha = 0.6f)
+                ambientColor = Color.Black.copy(alpha = 0.36f),
+                spotColor = Color.Black.copy(alpha = 0.48f)
             )
             .clip(barShape)
-            .background(Color(0xCC0E1A20))
-            .background(Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x0DFFFFFF))))
+            .glassSurface(
+                shape = barShape,
+                backdrop = backdrop,
+                blurRadius = 24.dp,
+                tint = Color(0xFF18232A).copy(alpha = 0.20f),
+                saturation = 1.45f,
+                highlight = 1.15f
+            )
             .border(
                 width = 1.dp,
-                brush = Brush.verticalGradient(listOf(Color(0x99FFFFFF), Color(0x1FFFFFFF))),
+                brush = Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.54f), Color.White.copy(alpha = 0.10f))
+                ),
                 shape = barShape
             )
             .padding(6.dp)
+            .pointerInput(count, maxWidth) {
+                val itemWidthPx = size.width / count.toFloat()
+                detectHorizontalDragGestures(
+                    onDragStart = { dragging = true },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        val maxX = (size.width - itemWidthPx).coerceAtLeast(0f)
+                        indicator.snapTo((indicator.value + dragAmount).coerceIn(0f, maxX))
+                    },
+                    onDragEnd = {
+                        val target = (indicator.value / itemWidthPx.coerceAtLeast(1f))
+                            .roundToInt().coerceIn(0, count - 1)
+                        launch {
+                            indicator.animateTo(
+                                targetValue = target * itemWidthPx,
+                                animationSpec = spring(
+                                    dampingRatio = 0.78f,
+                                    stiffness = 460f
+                                )
+                            )
+                            dragging = false
+                            latestOnSelect(target)
+                        }
+                    },
+                    onDragCancel = {
+                        launch {
+                            indicator.animateTo(
+                                targetValue = latestIndex * itemWidthPx,
+                                animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f)
+                            )
+                            dragging = false
+                        }
+                    }
+                )
+            }
     ) {
         val itemWidth = maxWidth / count
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val itemWidthPx = with(density) { itemWidth.toPx() }
-        val indicatorX by animateFloatAsState(
-            targetValue = if (isDragging) dragIndicatorX else itemWidthPx * index,
-            animationSpec = if (isDragging) snap() else spring(
-                dampingRatio = 0.86f,
-                stiffness = 520f
-            ),
-            label = "navIndicatorX"
+        val itemWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { itemWidth.toPx() }
+        val indicator = remember { Animatable(0f) }
+
+        LaunchedEffect(index, itemWidthPx) {
+            if (!dragging) {
+                indicator.animateTo(
+                    targetValue = index * itemWidthPx,
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 440f)
+                )
+            }
+        }
+
+        val pillScale by animateFloatAsState(
+            targetValue = if (dragging) 1.075f else 1f,
+            animationSpec = spring(dampingRatio = 0.62f, stiffness = 390f),
+            label = "liquidPillScale"
         )
 
         Box(
             modifier = Modifier
-                .graphicsLayer { translationX = indicatorX }
+                .graphicsLayer {
+                    translationX = indicator.value
+                    scaleX = pillScale
+                    scaleY = pillScale
+                }
                 .width(itemWidth)
                 .fillMaxHeight()
-                .clip(pillShape)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(accent.copy(alpha = 0.34f), accent.copy(alpha = 0.14f))
-                    )
+                .glassSurface(
+                    shape = pillShape,
+                    backdrop = backdrop,
+                    blurRadius = 12.dp,
+                    tint = accent.copy(alpha = 0.19f),
+                    saturation = 1.55f,
+                    highlight = 1.35f
                 )
-                .border(1.dp, accent.copy(alpha = 0.55f), pillShape)
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.24f),
+                    shape = pillShape
+                )
         )
 
         Row(
-            modifier = Modifier.fillMaxSize().selectableGroup()
-                .pointerInput(count, itemWidthPx) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            dragIndicatorX = itemWidthPx * currentIndex
-                            isDragging = true
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            val maxX = (size.width.toFloat() - itemWidthPx).coerceAtLeast(0f)
-                            dragIndicatorX = (dragIndicatorX + dragAmount).coerceIn(0f, maxX)
-                            change.consume()
-                        },
-                        onDragEnd = {
-                            val target = (dragIndicatorX / itemWidthPx.coerceAtLeast(1f))
-                                .roundToInt().coerceIn(0, count - 1)
-                            isDragging = false
-                            onSelect(target)
-                        },
-                        onDragCancel = { isDragging = false }
-                    )
-                },
+            modifier = Modifier.fillMaxSize().selectableGroup(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            destinations.forEachIndexed { i, destination ->
+            destinations.forEachIndexed { itemIndex, destination ->
                 NavBarItem(
                     destination = destination,
-                    selected = i == index,
+                    selected = itemIndex == index,
+                    activeProgress = (1f - kotlin.math.abs(indicator.value / itemWidthPx.coerceAtLeast(1f) - itemIndex))
+                        .coerceIn(0f, 1f),
                     accent = accent,
-                    onClick = { onSelect(i) },
+                    onClick = { latestOnSelect(itemIndex) },
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
             }
@@ -160,6 +207,7 @@ fun LiquidGlassNavBar(
 private fun NavBarItem(
     destination: NavDestination,
     selected: Boolean,
+    activeProgress: Float,
     accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -167,16 +215,21 @@ private fun NavBarItem(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.92f else 1f,
+        targetValue = if (pressed) 0.93f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ),
-        label = "navItemScale"
+        label = "liquidNavItemScale"
     )
     val tint by animateColorAsState(
-        targetValue = if (selected) lerp(accent, Color.White, 0.35f) else Color.White.copy(alpha = 0.66f),
-        label = "navItemTint"
+        targetValue = lerp(
+            Color.White.copy(alpha = 0.62f),
+            lerp(accent, Color.White, 0.38f),
+            activeProgress
+        ),
+        animationSpec = spring(dampingRatio = 0.86f, stiffness = 520f),
+        label = "liquidNavItemTint"
     )
 
     Column(
