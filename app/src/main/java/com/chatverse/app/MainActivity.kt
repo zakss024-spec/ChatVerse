@@ -5,6 +5,7 @@ import com.chatverse.app.ui.nav.NavDestination
 import com.chatverse.app.ui.nav.tabTransition
 import com.chatverse.app.ui.nav.GlassBackdrop
 import com.chatverse.app.ui.nav.LiquidGlassBackground
+import com.chatverse.app.ui.nav.LocalGlassBackdrop
 import com.chatverse.app.ui.nav.glassSource
 import com.chatverse.app.ui.nav.rememberGlassBackdrop
 
@@ -109,6 +110,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -886,6 +888,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
         modifier = Modifier.fillMaxSize(),
         color = AppearanceState.background
     ) {
+        CompositionLocalProvider(LocalGlassBackdrop provides glassBackdrop) {
         Box(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
@@ -960,6 +963,7 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
                     )
                 }
             }
+        }
         }
     }
 }
