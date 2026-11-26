@@ -2,9 +2,9 @@ package com.chatverse.app.ui.nav
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,13 +19,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -38,6 +36,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +66,7 @@ fun LiquidGlassNavBar(
     if (destinations.isEmpty()) return
     val count = destinations.size
     val index = selectedIndex.coerceIn(0, count - 1)
+    val currentIndex by rememberUpdatedState(index)
     val barShape = RoundedCornerShape(32.dp)
     val pillShape = RoundedCornerShape(28.dp)
     var dragIndicatorX by remember { mutableFloatStateOf(0f) }
@@ -95,23 +95,18 @@ fun LiquidGlassNavBar(
         val itemWidth = maxWidth / count
         val density = androidx.compose.ui.platform.LocalDensity.current
         val itemWidthPx = with(density) { itemWidth.toPx() }
-        val indicatorX by animateDpAsState(
-            targetValue = itemWidth * index,
-            animationSpec = spring(
-                dampingRatio = 0.74f,
-                stiffness = Spring.StiffnessMediumLow
+        val indicatorX by animateFloatAsState(
+            targetValue = if (isDragging) dragIndicatorX else itemWidthPx * index,
+            animationSpec = if (isDragging) snap() else spring(
+                dampingRatio = 0.86f,
+                stiffness = 520f
             ),
             label = "navIndicatorX"
         )
 
         Box(
             modifier = Modifier
-                .offset {
-                    IntOffset(
-                        x = if (isDragging) dragIndicatorX.roundToInt() else with(density) { indicatorX.roundToPx() },
-                        y = 0
-                    )
-                }
+                .graphicsLayer { translationX = indicatorX }
                 .width(itemWidth)
                 .fillMaxHeight()
                 .clip(pillShape)
@@ -125,10 +120,10 @@ fun LiquidGlassNavBar(
 
         Row(
             modifier = Modifier.fillMaxSize().selectableGroup()
-                .pointerInput(count, index, itemWidthPx) {
+                .pointerInput(count, itemWidthPx) {
                     detectHorizontalDragGestures(
                         onDragStart = {
-                            dragIndicatorX = itemWidthPx * index
+                            dragIndicatorX = itemWidthPx * currentIndex
                             isDragging = true
                         },
                         onHorizontalDrag = { change, dragAmount ->
