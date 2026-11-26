@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 
 /** Direction-aware transition for the five primary ChatVerse tabs. */
@@ -16,10 +18,12 @@ fun AnimatedContentTransitionScope<Int>.tabTransition(): ContentTransform {
     val enter = slideInHorizontally(
         animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
         initialOffsetX = { fullWidth -> (fullWidth * 0.18f).toInt() * direction }
-    ) + fadeIn(animationSpec = tween(durationMillis = 220, delayMillis = 50))
+    ) + fadeIn(animationSpec = tween(durationMillis = 220, delayMillis = 35)) +
+        scaleIn(initialScale = 0.965f, animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing))
     val exit = slideOutHorizontally(
         animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
         targetOffsetX = { fullWidth -> -(fullWidth * 0.12f).toInt() * direction }
-    ) + fadeOut(animationSpec = tween(durationMillis = 140))
+    ) + fadeOut(animationSpec = tween(durationMillis = 150)) +
+        scaleOut(targetScale = 0.985f, animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing))
     return enter togetherWith exit
 }
