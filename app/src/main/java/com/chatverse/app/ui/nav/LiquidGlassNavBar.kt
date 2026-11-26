@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,6 +77,7 @@ fun LiquidGlassNavBar(
     val barShape = RoundedCornerShape(32.dp)
     val pillShape = RoundedCornerShape(28.dp)
     var dragging by remember { mutableStateOf(false) }
+    val animationScope = rememberCoroutineScope()
 
     BoxWithConstraints(
         modifier = modifier
@@ -104,41 +106,6 @@ fun LiquidGlassNavBar(
                 shape = barShape
             )
             .padding(6.dp)
-            .pointerInput(count, maxWidth) {
-                val itemWidthPx = size.width / count.toFloat()
-                detectHorizontalDragGestures(
-                    onDragStart = { dragging = true },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        val maxX = (size.width - itemWidthPx).coerceAtLeast(0f)
-                        indicator.snapTo((indicator.value + dragAmount).coerceIn(0f, maxX))
-                    },
-                    onDragEnd = {
-                        val target = (indicator.value / itemWidthPx.coerceAtLeast(1f))
-                            .roundToInt().coerceIn(0, count - 1)
-                        launch {
-                            indicator.animateTo(
-                                targetValue = target * itemWidthPx,
-                                animationSpec = spring(
-                                    dampingRatio = 0.78f,
-                                    stiffness = 460f
-                                )
-                            )
-                            dragging = false
-                            latestOnSelect(target)
-                        }
-                    },
-                    onDragCancel = {
-                        launch {
-                            indicator.animateTo(
-                                targetValue = latestIndex * itemWidthPx,
-                                animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f)
-                            )
-                            dragging = false
-                        }
-                    }
-                )
-            }
     ) {
         val itemWidth = maxWidth / count
         val itemWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { itemWidth.toPx() }
@@ -184,7 +151,37 @@ fun LiquidGlassNavBar(
         )
 
         Row(
-            modifier = Modifier.fillMaxSize().selectableGroup(),
+            modifier = Modifier.fillMaxSize().selectableGroup().pointerInput(count, itemWidthPx) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragging = true },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        val maxX = (size.width.toFloat() - itemWidthPx).coerceAtLeast(0f)
+                        indicator.snapTo((indicator.value + dragAmount).coerceIn(0f, maxX))
+                    },
+                    onDragEnd = {
+                        val target = (indicator.value / itemWidthPx.coerceAtLeast(1f))
+                            .roundToInt().coerceIn(0, count - 1)
+                        animationScope.launch {
+                            indicator.animateTo(
+                                targetValue = target * itemWidthPx,
+                                animationSpec = spring(dampingRatio = 0.78f, stiffness = 460f)
+                            )
+                            dragging = false
+                            latestOnSelect(target)
+                        }
+                    },
+                    onDragCancel = {
+                        animationScope.launch {
+                            indicator.animateTo(
+                                targetValue = latestIndex * itemWidthPx,
+                                animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f)
+                            )
+                            dragging = false
+                        }
+                    }
+                )
+            },
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
