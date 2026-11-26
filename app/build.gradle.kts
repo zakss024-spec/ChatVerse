@@ -47,6 +47,9 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.compose.ui:ui")
+    // Explicit Compose stack for Liquid Glass: gestures/layout, motion, and graphics layers.
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
