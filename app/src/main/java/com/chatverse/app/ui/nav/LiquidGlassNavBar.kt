@@ -157,7 +157,9 @@ fun LiquidGlassNavBar(
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
                         val maxX = (size.width.toFloat() - itemWidthPx).coerceAtLeast(0f)
-                        indicator.snapTo((indicator.value + dragAmount).coerceIn(0f, maxX))
+                        animationScope.launch {
+                            indicator.snapTo((indicator.value + dragAmount).coerceIn(0f, maxX))
+                        }
                     },
                     onDragEnd = {
                         val target = (indicator.value / itemWidthPx.coerceAtLeast(1f))
