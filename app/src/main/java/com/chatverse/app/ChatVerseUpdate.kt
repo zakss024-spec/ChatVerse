@@ -1,5 +1,24 @@
 package com.chatverse.app
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -155,4 +174,98 @@ internal fun ChatVerseUpdateDialog(
             }
         }
     )
+}
+
+
+internal object ChatVerseUpdateNotifications {
+    private const val UNIQUE_WORK_NAME = "chatverse_periodic_update_check"
+
+    fun schedule(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val request = PeriodicWorkRequestBuilder<ChatVerseUpdateWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .build()
+        WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
+            UNIQUE_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+}
+
+class ChatVerseUpdateWorker(
+    appContext: Context,
+    workerParams: WorkerParameters
+) : CoroutineWorker(appContext, workerParams) {
+    override suspend fun doWork(): Result {
+        val update = checkChatVerseUpdate() ?: return Result.success()
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                applicationContext,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return Result.success()
+        }
+
+        val preferences = applicationContext.getSharedPreferences(
+            "chatverse_update_notifications",
+            Context.MODE_PRIVATE
+        )
+        if (preferences.getInt("last_notified_version_code", -1) >= update.versionCode) {
+            return Result.success()
+        }
+
+        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    "chatverse_updates",
+                    "Pembaruan ChatVerse",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = "Pemberitahuan saat versi baru ChatVerse tersedia."
+                }
+            )
+        }
+
+        val launchIntent = applicationContext.packageManager
+            .getLaunchIntentForPackage(applicationContext.packageName)
+            ?.apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+        val contentIntent = launchIntent?.let {
+            PendingIntent.getActivity(
+                applicationContext,
+                4201,
+                it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        val notification = NotificationCompat.Builder(applicationContext, "chatverse_updates")
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Pembaruan ChatVerse tersedia")
+            .setContentText("ChatVerse versi ${update.versionName} sudah tersedia.")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Versi ${update.versionName} tersedia. Ketuk notifikasi untuk membuka ChatVerse dan melihat pilihan pembaruan."
+                )
+            )
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+
+        return runCatching {
+            NotificationManagerCompat.from(applicationContext).notify(4201, notification)
+            preferences.edit().putInt("last_notified_version_code", update.versionCode).apply()
+            Result.success()
+        }.getOrElse {
+            Result.retry()
+        }
+    }
 }

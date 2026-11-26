@@ -1,5 +1,14 @@
 package com.chatverse.app
 
+import com.chatverse.app.ui.nav.LiquidGlassNavBar
+import com.chatverse.app.ui.nav.NavDestination
+import com.chatverse.app.ui.nav.tabTransition
+import com.chatverse.app.ui.nav.GlassBackdrop
+import com.chatverse.app.ui.nav.LiquidGlassBackground
+import com.chatverse.app.ui.nav.LocalGlassBackdrop
+import com.chatverse.app.ui.nav.glassSource
+import com.chatverse.app.ui.nav.rememberGlassBackdrop
+
 import android.os.Bundle
 import android.content.Context
 import android.content.Intent
@@ -33,6 +42,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -48,7 +58,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -78,6 +92,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -95,13 +110,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selectableGroup
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -110,6 +132,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -187,7 +210,15 @@ private suspend fun openChatMedia(context: Context, accessToken: String, path: S
         }
     }
 
-private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null, returnRepresentation: Boolean = false): Pair<Int, String> =
+private suspend fun supabaseCall(path: String, token: String, method: String = "GET", payload: JSONObject? = null, returnRepresentation: Boolean = false): Pair<Int, String> {
+    val currentToken = SessionRefresh.accessToken.ifBlank { token }
+    val first = supabaseCallOnce(path, currentToken, method, payload, returnRepresentation)
+    if (first.first != 401) return first
+    val renewed = SessionRefresh.refresh(currentToken) ?: return first
+    return supabaseCallOnce(path, renewed, method, payload, returnRepresentation)
+}
+
+private suspend fun supabaseCallOnce(path: String, token: String, method: String = "GET", payload: JSONObject? = null, returnRepresentation: Boolean = false): Pair<Int, String> =
     withContext(Dispatchers.IO) {
         val builder = Request.Builder().url(BuildConfig.SUPABASE_URL + path)
             .addHeader("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
@@ -236,6 +267,47 @@ private fun BrandMark(size: androidx.compose.ui.unit.Dp = 64.dp) {
 }
 
 @Composable
+private fun MatrixRainBackground(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "matrix-rain")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 14000, easing = LinearEasing)
+        ),
+        label = "matrix-rain-progress"
+    )
+    Canvas(modifier = modifier) {
+        val canvas = drawContext.canvas.nativeCanvas
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = android.graphics.Typeface.MONOSPACE
+            textSize = 13f
+        }
+        val glyphs = "01アイウエオカキクケコサシスセソタチツテトZAKSSDAKATHAN"
+        val columnCount = (size.width / 21f).toInt().coerceAtLeast(1)
+        for (column in 0 until columnCount) {
+            val x = column * 21f + 3f
+            val streamTop = ((column * 83f + progress * (size.height + 260f)) % (size.height + 260f)) - 130f
+            for (row in 0..11) {
+                val y = streamTop - row * 19f
+                if (y in -20f..(size.height + 20f)) {
+                    val glyph = glyphs[(column * 13 + row * 7) % glyphs.length].toString()
+                    val strength = (220 - row * 15).coerceIn(35, 220)
+                    paint.color = android.graphics.Color.argb(strength, 70, 255, 130)
+                    if (row == 0) paint.color = android.graphics.Color.argb(235, 205, 255, 220)
+                    canvas.drawText(glyph, x, y, paint)
+                }
+            }
+        }
+        paint.textSize = 15f
+        paint.color = android.graphics.Color.argb(72, 90, 255, 145)
+        paint.typeface = android.graphics.Typeface.create("monospace", android.graphics.Typeface.BOLD)
+        canvas.drawText("ZAKSS   DAKA   NATHAN", 18f, size.height * 0.19f, paint)
+        canvas.drawText("ZAKSS   DAKA   NATHAN", 18f, size.height * 0.79f, paint)
+    }
+}
+
+@Composable
 private fun AuthGate() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessionStore = remember { SecureSessionStore(context) }
@@ -259,6 +331,31 @@ private fun AuthGate() {
     var updateCheckFinished by remember { mutableStateOf(accessToken == null) }
     var availableUpdate by remember { mutableStateOf<ChatVerseUpdateInfo?>(null) }
     var updateDismissed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        SessionRefresh.onRenewed = { access, refresh ->
+            runCatching {
+                sessionStore.save(access, refresh)
+                restoredSession = StoredSession(access, refresh)
+            }.onFailure {
+                android.util.Log.e("ChatVerseAuth", "Unable to persist refreshed session", it)
+            }
+        }
+        SessionRefresh.onInvalid = {
+            sessionStore.clear()
+            restoredSession = null
+            accessToken = null
+        }
+    }
+    LaunchedEffect(accessToken, restoredSession?.refreshToken) {
+        val currentAccess = accessToken
+        val currentRefresh = restoredSession?.refreshToken.orEmpty()
+        if (!currentAccess.isNullOrBlank()) {
+            SessionRefresh.set(currentAccess, currentRefresh)
+        } else {
+            SessionRefresh.clear()
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (accessToken != null) {
@@ -309,7 +406,6 @@ private fun AuthGate() {
             updateDismissed = false
         } else {
             updateCheckFinished = false
-            PushTokenManager.syncWithSupabase(context, accessToken.orEmpty())
             val update = checkChatVerseUpdate()
             availableUpdate = update
             val dismissedVersion = context.getSharedPreferences("chatverse_update_state", Context.MODE_PRIVATE)
@@ -332,6 +428,23 @@ private fun AuthGate() {
             Box(Modifier.fillMaxSize().background(Night), contentAlignment = Alignment.Center) {
                 androidx.compose.material3.CircularProgressIndicator(color = Mint)
             }
+            return
+        }
+        if (showWelcomeIntro) {
+            WelcomeIntroScreen(onFinished = {
+                showWelcomeIntro = false
+                val prefs = context.getSharedPreferences("chatverse_push_state", Context.MODE_PRIVATE)
+                val alreadyAsked = prefs.getBoolean("notification_permission_asked", false)
+                if (!alreadyAsked && android.os.Build.VERSION.SDK_INT >= 33 &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                } else if (!alreadyAsked) {
+                    prefs.edit().putBoolean("notification_permission_asked", true).apply()
+                }
+            })
             return
         }
         val pendingUpdate = availableUpdate
@@ -359,45 +472,32 @@ private fun AuthGate() {
             )
             return
         }
-        if (showWelcomeIntro) {
-            WelcomeIntroScreen(onFinished = {
-                showWelcomeIntro = false
-                val prefs = context.getSharedPreferences("chatverse_push_state", Context.MODE_PRIVATE)
-                val alreadyAsked = prefs.getBoolean("notification_permission_asked", false)
-                if (!alreadyAsked && android.os.Build.VERSION.SDK_INT >= 33 &&
-                    androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, android.Manifest.permission.POST_NOTIFICATIONS
-                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                ) {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                } else if (!alreadyAsked) {
-                    prefs.edit().putBoolean("notification_permission_asked", true).apply()
-                }
-            })
-        } else {
-            ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    PushTokenManager.unregisterFromSupabase(context, accessToken.orEmpty())
-                }
-                ChatVerseAnalytics.reset()
-                sessionStore.clear()
-                restoredSession = null
-                accessToken = null
-                showWelcomeIntro = false
-                availableUpdate = null
-                updateDismissed = false
-            })
-        }
+        ChatVerseApp(accessToken = accessToken.orEmpty(), onLogout = {
+            ChatVerseAnalytics.reset()
+            SessionRefresh.clear()
+            sessionStore.clear()
+            restoredSession = null
+            accessToken = null
+            showWelcomeIntro = false
+            availableUpdate = null
+            updateDismissed = false
+        })
         return
     }
 
-    Box(Modifier.fillMaxSize().background(
-        Brush.radialGradient(listOf(Color(0xFF173B3B), Color(0xFF0A171C), Color(0xFF05090D)))
-    )) {
-        Box(Modifier.align(Alignment.TopEnd).padding(top = 74.dp, end = 12.dp)
-            .size(190.dp).clip(CircleShape).background(Color(0xFF64E8C7).copy(alpha = 0.045f)))
+    Box(Modifier.fillMaxSize().background(Color(0xFF020805))) {
+        MatrixRainBackground(Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)))
+        Text(
+            "ZAKSS  •  DAKA  •  NATHAN",
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 38.dp),
+            color = Mint.copy(alpha = 0.72f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 3.sp
+        )
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 26.dp),
+            modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 92.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -458,7 +558,7 @@ private fun AuthGate() {
                     onClick = {
                         when {
                             !AuthValidation.isValidUsername(username.trim()) ->
-                                message = "Username harus 3–30 karakter: huruf kecil, angka, titik, atau garis bawah."
+                                message = "Username harus 3–30 karakter: huruf besar/kecil, angka, titik, atau garis bawah."
                             !AuthValidation.isValidPassword(password) ->
                                 message = "Password harus 8–128 karakter."
                             isRegister && !AuthValidation.passwordsMatch(password, confirmPassword) ->
@@ -533,16 +633,153 @@ private fun AuthGate() {
                         color = Cyan, fontSize = 13.sp)
                 }
             }
-            Spacer(Modifier.height(20.dp))
-            Text("Developer: Zakss", color = Muted.copy(alpha = 0.7f), fontSize = 11.sp)
+        }
+        DeveloperTikTokLinks(
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+}
+@Composable
+private fun DeveloperTikTokLinks(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val developers = listOf(
+        "ZAKSS" to "zakssstecuyy",
+        "DAKA" to "dakaaaaa15",
+        "NATHAN" to "nthnbvrdo"
+    )
+    val glassShape = RoundedCornerShape(17.dp)
+
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        developers.forEach { (name, username) ->
+            Box(
+                modifier = Modifier.weight(1f)
+                    .height(72.dp)
+                    .shadow(13.dp, glassShape, clip = false, ambientColor = Mint.copy(alpha = 0.16f), spotColor = Color.Black.copy(alpha = 0.48f))
+                    .clip(glassShape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xD936514A),
+                                Color(0xC51B302A),
+                                Color(0xD00D1715)
+                            )
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.42f),
+                                Mint.copy(alpha = 0.42f),
+                                Color.White.copy(alpha = 0.08f)
+                            )
+                        ),
+                        glassShape
+                    )
+                    .clickable { openTikTokProfile(context, username) },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    Box(
+                        Modifier.fillMaxWidth().height(1.dp).align(Alignment.TopCenter)
+                            .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.62f), Mint.copy(alpha = 0.45f), Color.Transparent)))
+                    )
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 3.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Box(
+                            Modifier.size(24.dp).clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color.White.copy(alpha = 0.22f), Mint.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.12f))
+                                    )
+                                )
+                                .border(0.8.dp, Color.White.copy(alpha = 0.28f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.MusicNote,
+                                contentDescription = "TikTok $name",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Text(name, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp, maxLines = 1)
+                        Text("@$username", color = Color(0xFFD0E4DC), fontSize = 8.sp, maxLines = 1)
+                    }
+                    Text(
+                        "TIKTOK",
+                        color = Mint.copy(alpha = 0.95f),
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.1.sp,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp)
+                    )
+                }
+            }
         }
     }
 }
-private val Night = Color(0xFF071014)
-private val Panel = Color(0xFF142329)
-private object AppearanceState {
-    var background by mutableStateOf(Color(0xFF071014))
+private fun openTikTokProfile(context: Context, username: String) {
+    val profileUri = Uri.parse("https://www.tiktok.com/@$username")
+    val appIntent = Intent(Intent.ACTION_VIEW, profileUri).apply {
+        setPackage("com.zhiliaoapp.musically")
+    }
+    val openedInApp = runCatching {
+        context.startActivity(appIntent)
+    }.isSuccess
+
+    if (!openedInApp) {
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, profileUri))
+        }
+    }
 }
+
+private val Night = Color(0xFF000000)
+private val Panel: Color
+    get() = if (LiquidGlassState.enabled) Color(0xE62B2B2B) else Color(0xFF101214)
+private object AppearanceState {
+    var background by mutableStateOf(Color(0xFF000000))
+}
+private object LiquidGlassState {
+    var enabled by mutableStateOf(false)
+}
+private fun applyLiquidGlassPalette(context: Context, enabled: Boolean) {
+    LiquidGlassState.enabled = enabled
+    if (enabled) {
+        // Secret appearance: near-black canvas, charcoal surfaces, lavender active controls.
+        AppearanceState.background = Color(0xFF101010)
+        AccentThemeState.accent = Color(0xFFD9B8F5)
+    } else {
+        // Original standard ChatVerse palette remains unchanged.
+        AppearanceState.background = Color(0xFF000000)
+        AccentThemeState.accent = Color(0xFF68E5C1)
+    }
+    context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean("liquid_glass_enabled", enabled)
+        .putString("background_hex", accentColorHex(AppearanceState.background))
+        .putString("accent_hex", accentColorHex(AccentThemeState.accent))
+        .apply()
+}
+private fun hasReadableWhiteText(background: Color): Boolean {
+    fun linearize(channel: Float): Float =
+        if (channel <= 0.04045f) channel / 12.92f
+        else Math.pow(((channel + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+
+    val luminance = 0.2126f * linearize(background.red) +
+        0.7152f * linearize(background.green) +
+        0.0722f * linearize(background.blue)
+    return luminance <= 0.18f
+}
+
 private fun applyBackgroundColor(context: Context, color: Color) {
     AppearanceState.background = color
     context.getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
@@ -587,9 +824,27 @@ private fun applyAccentColor(context: Context, color: Color) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ChatVerseUpdateNotifications.schedule(this)
         val themePrefs = getSharedPreferences("chatverse_theme", Context.MODE_PRIVATE)
-        themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
-        themePrefs.getString("background_hex", null)?.let { parseAccentColor(it)?.let { color -> AppearanceState.background = color } }
+        LiquidGlassState.enabled = themePrefs.getBoolean("liquid_glass_enabled", false)
+        if (LiquidGlassState.enabled) {
+            AppearanceState.background = Color(0xFF101010)
+            AccentThemeState.accent = Color(0xFFD9B8F5)
+        } else {
+            themePrefs.getString("accent_hex", null)?.let { parseAccentColor(it)?.let { color -> AccentThemeState.accent = color } }
+        }
+        if (LiquidGlassState.enabled) {
+            AppearanceState.background = Color(0xFF101010)
+            AccentThemeState.accent = Color(0xFFD9B8F5)
+        } else if (!themePrefs.getBoolean("black_glass_default_v1", false)) {
+            AppearanceState.background = Color(0xFF000000)
+            themePrefs.edit()
+                .putString("background_hex", "#000000")
+                .putBoolean("black_glass_default_v1", true)
+                .apply()
+        } else {
+            themePrefs.getString("background_hex", null)?.let { parseAccentColor(it)?.let { color -> AppearanceState.background = color } }
+        }
         setContent {
             MaterialTheme(
                 colorScheme = androidx.compose.material3.darkColorScheme(
@@ -616,64 +871,99 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    var pendingChatUsername by remember { mutableStateOf<String?>(null) }
+    val glassBackdrop = rememberGlassBackdrop()
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val navDestinations = remember {
+        listOf(
+            NavDestination("Chats", Icons.Rounded.ChatBubbleOutline),
+            NavDestination("Updates", Icons.Rounded.Update),
+            NavDestination("Communities", Icons.Rounded.Groups),
+            NavDestination("Calls", Icons.Rounded.Call),
+            NavDestination("Settings", Icons.Rounded.Settings)
+        )
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = AppearanceState.background
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            AppearanceState.background.copy(alpha = 0.96f),
-                            AppearanceState.background,
-                            AppearanceState.background.copy(alpha = 0.88f)
-                        )
-                    )
-                )
-        ) {
-            Column(
+        CompositionLocalProvider(LocalGlassBackdrop provides glassBackdrop) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 92.dp)
+                    .glassSource(glassBackdrop)
             ) {
-                Spacer(Modifier.height(22.dp))
+                if (LiquidGlassState.enabled) {
+                    LiquidGlassBackground(
+                        base = AppearanceState.background,
+                        accent = AccentThemeState.accent,
+                        modifier = Modifier.fillMaxSize(),
+                        animated = false
+                    )
+                } else {
+                    Box(Modifier.fillMaxSize().background(AppearanceState.background))
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (imeVisible || LiquidGlassState.enabled) 0.dp else 92.dp)
+                ) {
                 Header(onProfileClick = { selectedTab = 4 })
-                Spacer(Modifier.height(16.dp))
                 AnimatedContent(
                     targetState = selectedTab,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    transitionSpec = {
-                        (androidx.compose.animation.slideInHorizontally(
-                            animationSpec = tween(280),
-                            initialOffsetX = { fullWidth -> fullWidth / 5 }
-                        ) + fadeIn(animationSpec = tween(180))) togetherWith
-                            (slideOutHorizontally(
-                                animationSpec = tween(220),
-                                targetOffsetX = { fullWidth -> -fullWidth / 8 }
-                            ) + fadeOut(animationSpec = tween(150)))
-                    },
+                    transitionSpec = { tabTransition() },
                     label = "mainTabSlide"
                 ) { tab ->
                     when (tab) {
-                        0 -> ChatsHubScreen(accessToken)
+                        0 -> ChatsHubScreen(
+                            accessToken = accessToken,
+                            initialSearchUsername = pendingChatUsername,
+                            onInitialSearchHandled = { pendingChatUsername = null }
+                        )
                         1 -> UpdatesScreen(accessToken)
                         2 -> CommunitiesScreen(accessToken)
-                        3 -> CallsScreen()
-                        else -> ProfileScreen(accessToken, onLogout)
+                        3 -> CallsScreen(accessToken)
+                        else -> ProfileScreen(
+                            accessToken,
+                            onLogout,
+                            onDeveloperContactClick = {
+                                pendingChatUsername = "ZakssX"
+                                selectedTab = 0
+                            }
+                        )
                     }
                 }
             }
+            }
 
-            GlassNavigation(
-                selected = selectedTab,
-                onSelect = { selectedTab = it },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
-            )
+            AnimatedVisibility(
+                visible = !imeVisible,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                if (LiquidGlassState.enabled) {
+                    LiquidGlassNavBar(
+                        destinations = navDestinations,
+                        selectedIndex = selectedTab,
+                        onSelect = { selectedTab = it },
+                        accent = AccentThemeState.accent,
+                        backdrop = glassBackdrop,
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    )
+                } else {
+                    BottomNavigationBar(
+                        selected = selectedTab,
+                        onSelect = { selectedTab = it },
+                        modifier = Modifier.padding(bottom = 0.dp)
+                    )
+                }
+            }
+        }
         }
     }
 }
@@ -681,32 +971,37 @@ private fun ChatVerseApp(accessToken: String, onLogout: () -> Unit) {
 @Composable
 private fun Header(onProfileClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
+            .background(if (LiquidGlassState.enabled) Color(0xA60B1B15) else Color(0xFF111B21))
+            .padding(start = 18.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BrandMark(48.dp)
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("ChatVerse", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
-                Text("Beyond Messaging", color = Mint, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            Box(Modifier.padding(2.dp)) { BrandMark(32.dp) }
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("ChatVerse", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.45).sp)
+                Text("MESSAGING", color = Color(0xFF8696A0), fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             }
         }
         Box(
-            modifier = Modifier.size(46.dp).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(0xFF244B4C), Color(0xFF13272E))))
+            modifier = Modifier.size(40.dp).clip(CircleShape)
+                .background(if (LiquidGlassState.enabled) Color(0x663C6A55) else Color(0xFF202C33))
+                .border(1.dp, Color.White.copy(alpha = 0.06f), CircleShape)
                 .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
-        ) {
-            Text("Z", color = Mint, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        }
+        ) { Text("Z", color = Color(0xFFE9EDEF), fontWeight = FontWeight.Bold, fontSize = 16.sp) }
     }
 }
 private data class SearchProfile(val id: String, val username: String, val displayName: String)
 private data class ConversationPreview(val id: String, val type: String, val title: String, val peerId: String, val peerUsername: String, val peerName: String, val lastMessage: String)
 
 @Composable
-private fun ChatsHubScreen(accessToken: String) {
+private fun ChatsHubScreen(
+    accessToken: String,
+    initialSearchUsername: String? = null,
+    onInitialSearchHandled: () -> Unit = {}
+) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(listOf<SearchProfile>()) }
     var status by remember { mutableStateOf("Cari username untuk memulai chat pribadi.") }
@@ -714,9 +1009,42 @@ private fun ChatsHubScreen(accessToken: String) {
     var activeId by remember { mutableStateOf("") }
     var activeTitle by remember { mutableStateOf("") }
     var showGlobal by remember { mutableStateOf(false) }
+    var showGroups by remember { mutableStateOf(false) }
     var inbox by remember { mutableStateOf(listOf<ConversationPreview>()) }
     var inboxStatus by remember { mutableStateOf("Memuat daftar chat...") }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(initialSearchUsername, accessToken) {
+        val requestedUsername = initialSearchUsername?.trim().orEmpty()
+        if (requestedUsername.isNotBlank()) {
+            query = requestedUsername
+            searching = true
+            status = "Mencari akun developer..."
+            try {
+                val encoded = URLEncoder.encode(requestedUsername, "UTF-8")
+                val response = supabaseCall(
+                    "/rest/v1/profiles?username=ilike.$encoded&select=id,username,display_name&limit=5",
+                    accessToken
+                )
+                if (response.first in 200..299) {
+                    val array = org.json.JSONArray(response.second)
+                    results = (0 until array.length()).map { index ->
+                        val row = array.getJSONObject(index)
+                        SearchProfile(row.optString("id"), row.optString("username"), row.optString("display_name"))
+                    }
+                    status = if (results.isEmpty()) "Akun @ZakssX belum ditemukan."
+                    else "Akun developer ditemukan. Ketuk untuk membuka chat."
+                } else {
+                    status = "Pencarian akun developer gagal (${response.first})."
+                }
+            } catch (_: Exception) {
+                status = "Tidak dapat mencari akun developer. Periksa koneksi."
+            } finally {
+                searching = false
+                onInitialSearchHandled()
+            }
+        }
+    }
 
     LaunchedEffect(accessToken) {
         while (true) {
@@ -755,6 +1083,14 @@ private fun ChatsHubScreen(accessToken: String) {
         return
     }
 
+    if (showGroups) {
+        Column {
+            TextButton(onClick = { showGroups = false }) { Text("← Kembali ke Chats", color = Mint) }
+            GroupsScreen(accessToken)
+        }
+        return
+    }
+
     if (activeId.isNotBlank()) {
         Column {
             TextButton(onClick = { activeId = ""; activeTitle = "" }) { Text("← Kembali ke Chats", color = Mint) }
@@ -769,85 +1105,18 @@ private fun ChatsHubScreen(accessToken: String) {
         contentPadding = PaddingValues(bottom = 14.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Chats", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-                Text("Pesan pribadi dan percakapan terbaru", color = Muted, fontSize = 12.sp)
-            }
-        }
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth()
-                    .glassPanel(RoundedCornerShape(18.dp))
-                    .clickable { showGlobal = true }
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Rounded.Public, contentDescription = null, tint = Mint, modifier = Modifier.size(22.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("ChatVerse Global", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        Text("Masuk ke percakapan publik", color = Muted, fontSize = 12.sp)
-                    }
-                    Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(18.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Chats", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
+                    Text("Pesan pribadi, grup, dan teman baru", color = Color(0xFF8696A0), fontSize = 12.sp)
                 }
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Recent chats", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(inboxStatus, color = Muted, fontSize = 11.sp)
-            }
-        }
-        items(inbox.filterNot { it.type == "global" || it.type == "group" }, key = { it.id }) { item ->
-            val label = item.peerName.ifBlank { "@" + item.peerUsername }
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth()
-                    .glassPanel(RoundedCornerShape(18.dp))
-                    .clickable {
-                        activeId = item.id
-                        activeTitle = label
-                    }
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF294B4B)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(label.firstOrNull()?.uppercase() ?: "?", color = Mint, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Muted, fontSize = 12.sp, maxLines = 1)
-                    }
-                    Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat", tint = Mint, modifier = Modifier.size(18.dp))
-                }
-            }
-        }
-        if (inbox.none { it.type != "global" && it.type != "group" }) {
-            item {
-                FeatureCard("Belum ada chat pribadi", "Cari username di bawah untuk memulai percakapan.")
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Spacer(Modifier.height(5.dp))
-                Text("New message", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Cari orang", color = Color(0xFFE9EDEF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+                    onValueChange = { query = AuthValidation.normalizeUsername(it) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("Cari username...") }
+                    placeholder = { Text("Cari username ChatVerse...") }
                 )
                 val searchInteractionSource = remember { MutableInteractionSource() }
                 val searchPressed by searchInteractionSource.collectIsPressedAsState()
@@ -884,31 +1153,126 @@ private fun ChatsHubScreen(accessToken: String) {
                     enabled = query.length >= 2 && !searching,
                     interactionSource = searchInteractionSource,
                     modifier = Modifier.fillMaxWidth().graphicsLayer(scaleX = searchScale, scaleY = searchScale)
-                ) { Text(if (searching) "Searching..." else "Search users") }
+                ) { Text(if (searching) "Mencari..." else "Cari pengguna") }
                 Text(status, color = Muted, fontSize = 12.sp)
+            }
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF202C33)),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.weight(1f).clickable { showGroups = true }
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(21.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Groups", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("Obrolan bersama", color = Color(0xFF8696A0), fontSize = 10.sp)
+                        }
+                    }
+                }
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF202C33)),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.weight(1f).clickable { showGlobal = true }
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Public, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(21.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Global Chat", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("Ruang publik", color = Color(0xFF8696A0), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 1.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Terbaru", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(inboxStatus, color = Muted, fontSize = 10.sp, maxLines = 1)
+            }
+        }
+        items(inbox.filterNot { it.type == "global" || it.type == "group" }, key = { it.id }) { item ->
+            val label = item.peerName.ifBlank { "@" + item.peerUsername }
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable {
+                        activeId = item.id
+                        activeTitle = label
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(52.dp).clip(CircleShape)
+                        .background(Color(0xFF263A32)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(label.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                }
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f).padding(bottom = 2.dp)) {
+                    Text(label, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1)
+                    Spacer(Modifier.height(3.dp))
+                    Text(item.lastMessage.ifBlank { "Mulai percakapan" }, color = Color(0xFF8696A0), fontSize = 13.sp, maxLines = 1)
+                }
+                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat", tint = Color.White.copy(alpha = 0.68f), modifier = Modifier.size(18.dp))
+            }
+            Box(Modifier.fillMaxWidth().padding(start = 81.dp).height(0.6.dp).background(Color(0xFF222D34)))
+        }
+        if (inbox.none { it.type != "global" && it.type != "group" }) {
+            item {
+                FeatureCard("Belum ada chat pribadi", "Cari username di bawah untuk memulai percakapan.")
             }
         }
         items(results, key = { it.id }) { profile ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = Panel),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth().clickable {
-                    scope.launch {
-                        try {
-                            val body = JSONObject().put("p_other_user", profile.id)
-                            val response = supabaseCall("/rest/v1/rpc/open_direct_conversation", accessToken, "POST", body)
-                            if (response.first in 200..299) {
-                                activeId = response.second.trim().trim('"')
-                                activeTitle = profile.displayName.ifBlank { "@" + profile.username }
-                            } else status = "Tidak dapat membuka chat. Pastikan pengguna tidak memblokirmu."
-                        } catch (_: Exception) {
-                            status = "Gagal membuka chat. Periksa koneksi."
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .background(Color(0xFF182229), RoundedCornerShape(12.dp))
+                    .clickable {
+                        scope.launch {
+                            try {
+                                val body = JSONObject().put("p_other_user", profile.id)
+                                val response = supabaseCall("/rest/v1/rpc/open_direct_conversation", accessToken, "POST", body)
+                                if (response.first in 200..299) {
+                                    activeId = response.second.trim().trim('"')
+                                    activeTitle = profile.displayName.ifBlank { "@" + profile.username }
+                                } else status = "Tidak dapat membuka chat. Pastikan pengguna tidak memblokirmu."
+                            } catch (_: Exception) {
+                                status = "Gagal membuka chat. Periksa koneksi."
+                            }
                         }
                     }
-                }
             ) {
                 Column(Modifier.padding(15.dp)) {
-                    Text(profile.displayName.ifBlank { profile.username }, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(profile.displayName.ifBlank { profile.username }, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        if (profile.username.equals("ZakssX", ignoreCase = true)) {
+                            Box(
+                                Modifier.size(16.dp).clip(CircleShape).background(Color(0xFF25D366)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("✓", color = Color(0xFF10231B), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     Text("@" + profile.username, color = Mint, fontSize = 12.sp)
                 }
             }
@@ -921,6 +1285,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     var messages by remember { mutableStateOf(listOf<GlobalMessage>()) }
     var myUserId by remember { mutableStateOf("") }
     var draft by remember { mutableStateOf("") }
+    var showSecretModeChooser by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Memuat percakapan...") }
     var sending by remember { mutableStateOf(false) }
     var peerTyping by remember { mutableStateOf(false) }
@@ -1035,10 +1400,25 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
     }
 
     Column(Modifier.fillMaxSize()) {
-    Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
-    Text(status, color = Muted, fontSize = 11.sp)
-    if (peerTyping) Text("Sedang mengetik...", color = Mint, fontSize = 12.sp)
-    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp)
+    ) {
+        Box(
+            Modifier.size(43.dp).clip(CircleShape).background(Color(0xFF263A32)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(title.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(if (peerTyping) "Sedang mengetik..." else "Chat pribadi", color = if (peerTyping) Mint else Muted, fontSize = 11.sp)
+        }
+        Box(Modifier.size(8.dp).clip(CircleShape).background(if (peerTyping) Mint else Color(0xFF65747C)))
+    }
+    Text(status, color = Muted, fontSize = 10.sp, maxLines = 1)
+    Spacer(Modifier.height(6.dp))
     LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).fillMaxWidth(), reverseLayout = true, contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         items(messages, key = { it.id }) { item ->
             val mine = item.senderId == myUserId
@@ -1051,7 +1431,7 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
                     modifier = Modifier
                         .widthIn(max = 300.dp)
                         .clip(RoundedCornerShape(17.dp))
-                        .background(if (mine) Color(0xFF24564F) else Panel)
+                        .background(if (mine) Color(0xFF005C4B) else Color(0xFF202C33))
                         .clickable { if (!item.isDeleted) replyingTo = item }
                         .padding(horizontal = 13.dp, vertical = 10.dp),
                     horizontalAlignment = if (mine) Alignment.End else Alignment.Start
@@ -1180,6 +1560,11 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
         Spacer(Modifier.width(8.dp))
         Button(enabled = draft.isNotBlank() && !sending && !uploadingMedia && myUserId.isNotBlank(), onClick = {
             val content = draft.trim()
+            if (content.equals("ZakssSigma", ignoreCase = true)) {
+                draft = ""
+                showSecretModeChooser = true
+                return@Button
+            }
             val replyId = replyingTo?.id
             sending = true
             scope.launch {
@@ -1220,6 +1605,28 @@ private fun DirectChatScreen(accessToken: String, conversationId: String, title:
             }
         }) { Text(if (uploadingMedia) "Upload..." else if (sending) "..." else "Send") }
     }
+    }
+    if (showSecretModeChooser) {
+        AlertDialog(
+            onDismissRequest = { showSecretModeChooser = false },
+            title = { Text("ChatVerse appearance", color = Color.White) },
+            text = { Text("Kode rahasia diterima. Pilih tampilan yang ingin digunakan.", color = Color(0xFFD6E6DE)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    applyLiquidGlassPalette(context, true)
+                    showSecretModeChooser = false
+                    status = "Liquid Glass Mode diaktifkan."
+                }) { Text("Liquid Glass Mode", color = Mint) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    applyLiquidGlassPalette(context, false)
+                    showSecretModeChooser = false
+                    status = "Mode Standar diaktifkan."
+                }) { Text("Mode Standar", color = Color.White) }
+            },
+            containerColor = if (LiquidGlassState.enabled) Color(0xF21A3027) else Panel
+        )
     }
 }
 
@@ -1464,7 +1871,7 @@ private fun GroupsScreen(accessToken: String) {
     Spacer(Modifier.height(12.dp))
     Text("Create a group", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
     OutlinedTextField(value = title, onValueChange = { title = it.take(60) }, label = { Text("Nama grup") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(value = query, onValueChange = { query = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }.take(30) },
+    OutlinedTextField(value = query, onValueChange = { query = AuthValidation.normalizeUsername(it) },
         label = { Text("Cari username teman") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     val groupSearchInteraction = remember { MutableInteractionSource() }
     val groupSearchPressed by groupSearchInteraction.collectIsPressedAsState()
@@ -1983,8 +2390,9 @@ private fun AnimatedActionButton(
         modifier = modifier
             .height(48.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .background(Mint)
+            .border(if (LiquidGlassState.enabled) 1.dp else 0.dp, Color.White.copy(alpha = if (LiquidGlassState.enabled) 0.18f else 0f), RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -2004,8 +2412,9 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
     Box(
         modifier = Modifier
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .background(if (enabled) Mint else Mint.copy(alpha = 0.35f))
+            .border(if (LiquidGlassState.enabled) 1.dp else 0.dp, Color.White.copy(alpha = if (LiquidGlassState.enabled) 0.16f else 0f), RoundedCornerShape(if (LiquidGlassState.enabled) 28.dp else 16.dp))
             .clickable(enabled = enabled, interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 13.dp),
         contentAlignment = Alignment.Center
@@ -2017,6 +2426,10 @@ private fun AnimatedSendButton(enabled: Boolean, sending: Boolean, onClick: () -
 @Composable
 private fun WelcomeIntroScreen(onFinished: () -> Unit) {
     var showText by remember { mutableStateOf(false) }
+    var showZakss by remember { mutableStateOf(false) }
+    var showDaka by remember { mutableStateOf(false) }
+    var showNathan by remember { mutableStateOf(false) }
+    var showTagline by remember { mutableStateOf(false) }
     val rain = rememberInfiniteTransition(label = "matrixRain")
     val phase by rain.animateFloat(
         initialValue = 0f,
@@ -2026,12 +2439,20 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
         ),
         label = "matrixRainPhase"
     )
-    val columns = remember { List(16) { kotlin.random.Random.nextInt(0, 1800) } }
+    val columns = remember { List(18) { kotlin.random.Random.nextInt(0, 1800) } }
 
     LaunchedEffect(Unit) {
-        delay(550)
+        delay(450)
         showText = true
-        delay(2850)
+        delay(400)
+        showZakss = true
+        delay(420)
+        showDaka = true
+        delay(420)
+        showNathan = true
+        delay(420)
+        showTagline = true
+        delay(1700)
         onFinished()
     }
 
@@ -2043,13 +2464,14 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
                     typeface = android.graphics.Typeface.MONOSPACE
                     textSize = 22f
                 }
-                val glyphs = "01アイウエオカキクケコサシスセソタチツテトナニヌネノ"
+                // Latin-only digital rain: no Japanese, kana, or kanji characters.
+                val glyphs = "ADJWICOEDSABCDEFGHIJKLMNOPQRSTUVWXYZ"
                 val columnWidth = size.width / columns.size
                 val cellHeight = 28f
                 columns.forEachIndexed { index, seed ->
                     val speed = 0.62f + (index % 6) * 0.13f
                     val offset = (phase * (size.height + 500f) * speed + seed) % (size.height + 500f)
-                    for (row in 0..9) {
+                    for (row in 0..10) {
                         val y = offset - row * cellHeight
                         if (y >= 0f && y <= size.height + cellHeight) {
                             val glyphIndex = (seed + row * 13 + index * 7) % glyphs.length
@@ -2067,23 +2489,88 @@ private fun WelcomeIntroScreen(onFinished: () -> Unit) {
             exit = fadeOut(tween(350)),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(11.dp)
+            ) {
                 Text(
-                    "Welcome to ChatVerse",
+                    "WELCOME TO CHATVERSE",
                     color = Color.White,
-                    fontSize = 25.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.4).sp
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Developer:Zakss",
-                    color = Mint,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.1.sp
                 )
+                Text(
+                    "THE MINDS BEHIND THE UNIVERSE",
+                    color = Mint,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.2.sp
+                )
+                Spacer(Modifier.height(5.dp))
+                IntroDeveloperCredit(
+                    name = "ZAKSS",
+                    role = "FOUNDER  •  LEAD DEVELOPER",
+                    tagline = "Architecting the vision",
+                    visible = showZakss
+                )
+                IntroDeveloperCredit(
+                    name = "DAKA",
+                    role = "CORE DEVELOPER",
+                    tagline = "Building beyond boundaries",
+                    visible = showDaka
+                )
+                IntroDeveloperCredit(
+                    name = "NATHAN",
+                    role = "CORE DEVELOPER",
+                    tagline = "Turning ideas into reality",
+                    visible = showNathan
+                )
+                AnimatedVisibility(
+                    visible = showTagline,
+                    enter = fadeIn(tween(450))
+                ) {
+                    Text(
+                        "THREE MINDS. ONE VISION.",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.7.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun IntroDeveloperCredit(
+    name: String,
+    role: String,
+    tagline: String,
+    visible: Boolean
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(350)) + slideInVertically(
+            animationSpec = tween(350),
+            initialOffsetY = { it / 3 }
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(0.88f)
+                .clip(RoundedCornerShape(13.dp))
+                .background(Color(0xCC07150D))
+                .border(1.dp, Mint.copy(alpha = 0.28f), RoundedCornerShape(13.dp))
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+            Text(role, color = Mint, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(tagline, color = Color(0xFFB7C9BC), fontSize = 9.sp)
         }
     }
 }
@@ -2148,8 +2635,27 @@ private fun UpdatesScreen(accessToken:String) {
                 if (mime !in allowed) {
                     status = if (type == "image") "Format foto harus JPG, PNG, atau WEBP." else "Video harus MP4."
                 } else {
-                    val bytes = withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
-                    if (bytes == null || bytes.isEmpty() || bytes.size > 20 * 1024 * 1024) {
+                    // Read with a hard cap so oversized videos cannot consume unbounded memory.
+                    val bytes = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            var exceededLimit = false
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > 20 * 1024 * 1024) {
+                                    exceededLimit = true
+                                    break
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            if (exceededLimit) null else output.toByteArray()
+                        }
+                    }
+                    if (bytes == null || bytes.isEmpty()) {
                         status = "File kosong atau melebihi batas 20 MB."
                     } else {
                         val storyId = java.util.UUID.randomUUID().toString()
@@ -2310,9 +2816,42 @@ private fun UpdatesScreen(accessToken:String) {
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(9.dp)){
-        Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Updates",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.SemiBold);Text("Stories 24 jam dan Close Friends",color=Muted,fontSize=12.sp)};TextButton(onClick={scope.launch{reload()}}){Text("Refresh",color=Mint)}}
-        Text(status,color=Mint,fontSize=11.sp)
-        if(stories.isEmpty())FeatureCard("Belum ada Story","Buat Story teks atau unggah foto dan video MP4. Story aktif akan ditampilkan selama masa berlakunya.")
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF183B32), Color(0xFF172832), Color(0xFF111B21))))
+                .border(1.dp, Color(0xFF31564B), RoundedCornerShape(22.dp))
+                .padding(18.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("CHATVERSE • MOMENTS", color = Mint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+                        Text("Updates", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                        Text("Cerita singkat yang hilang dalam 24 jam.", color = Color(0xFFB6C8C4), fontSize = 12.sp)
+                    }
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0x3325D366)), contentAlignment = Alignment.Center) {
+                        Text("◉", color = Mint, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).clip(RoundedCornerShape(30.dp)).background(Color(0x3325D366)).padding(horizontal = 11.dp, vertical = 7.dp)) {
+                        Text(status, color = Color(0xFFD4E6DF), fontSize = 10.sp, maxLines = 1)
+                    }
+                    TextButton(onClick={scope.launch{reload()}}) { Text("Muat ulang", color=Mint, fontSize=11.sp) }
+                }
+            }
+        }
+        if(stories.isEmpty()) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).border(1.dp, Color(0xFF2B3A40), RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF203B34)), contentAlignment = Alignment.Center) {
+                        Text("＋", color = Mint, fontSize = 30.sp, fontWeight = FontWeight.Light)
+                    }
+                    Text("Belum ada cerita", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Mulai bagikan momen pertamamu. Cerita teks, foto, atau video akan tampil di sini.", color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center)
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -2706,16 +3245,40 @@ private fun CommunitiesScreen(accessToken: String) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Communities", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-                Text("Komunitas, channel, dan pengumuman", color = Muted, fontSize = 12.sp)
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF173B32), Color(0xFF182B38), Color(0xFF111B21))))
+                .border(1.dp, Color(0xFF31564B), RoundedCornerShape(22.dp)).padding(18.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("CHATVERSE • COMMUNITY SPACE", color = Mint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                        Text("Communities", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        Text("Temukan ruang untuk berbagi dan berdiskusi.", color = Color(0xFFB6C8C4), fontSize = 12.sp)
+                    }
+                    Box(Modifier.size(50.dp).clip(CircleShape).background(Color(0x3325D366)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = Mint, modifier = Modifier.size(28.dp))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).clip(RoundedCornerShape(30.dp)).background(Color(0x3325D366)).padding(horizontal = 11.dp, vertical = 7.dp)) {
+                        Text(status, color = Color(0xFFD4E6DF), fontSize = 10.sp, maxLines = 1)
+                    }
+                    TextButton(onClick = { scope.launch { refreshCommunities() } }) { Text("Muat ulang", color = Mint, fontSize = 11.sp) }
+                }
             }
-            TextButton(onClick = { scope.launch { refreshCommunities() } }) { Text("Refresh", color = Mint) }
         }
-        Text(status, color = Mint, fontSize = 11.sp)
         if (communities.isEmpty()) {
-            FeatureCard("Belum ada komunitas", "Buat komunitas pertama atau coba lagi setelah komunitas tersedia.")
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).border(1.dp, Color(0xFF2B3A40), RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF203B34)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = Mint, modifier = Modifier.size(28.dp))
+                    }
+                    Text("Belum ada komunitas", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Jadilah yang pertama membuat ruang komunitas dan mulai kumpulkan anggota.", color = Muted, fontSize = 11.sp)
+                }
+            }
         }
         communities.forEach { community ->
             val joined = community.id in joinedIds
@@ -2766,27 +3329,118 @@ private fun CommunitiesScreen(accessToken: String) {
     }
 }
 
+private data class CallHistoryItem(
+    val id: String,
+    val type: String,
+    val status: String,
+    val callerId: String,
+    val calleeId: String,
+    val createdAt: String
+)
+
 @Composable
-private fun CallsScreen() {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("Calls", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-        Text("Riwayat dan panggilan suara/video", color = Muted, fontSize = 12.sp)
-        FeatureCard(
-            "Calling belum dikonfigurasi",
-            "Backend signaling panggilan sudah disiapkan, tetapi engine media WebRTC dan layanan STUN/TURN belum dikonfigurasi. Tombol panggilan belum ditampilkan agar tidak memberi kesan panggilan sudah berfungsi."
-        )
-        FeatureCard(
-            "Yang masih diperlukan",
-            "Tabel signaling dan kontrol akses peserta sudah tersedia. Aplikasi masih membutuhkan engine media WebRTC, konfigurasi STUN/TURN, izin mikrofon/kamera, dan pengujian panggilan dua perangkat."
-        )
+private fun CallsScreen(accessToken: String) {
+    var calls by remember { mutableStateOf(emptyList<CallHistoryItem>()) }
+    var myUserId by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+    var status by remember { mutableStateOf("") }
+
+    LaunchedEffect(accessToken) {
+        loading = true
+        try {
+            val user = supabaseCall("/auth/v1/user", accessToken)
+            if (user.first in 200..299) {
+                myUserId = JSONObject(user.second).optString("id")
+                val result = supabaseCall(
+                    "/rest/v1/call_sessions?select=id,call_type,status,caller_id,callee_id,created_at&or=(caller_id.eq.${myUserId},callee_id.eq.${myUserId})&order=created_at.desc&limit=40",
+                    accessToken
+                )
+                if (result.first in 200..299) {
+                    val rows = org.json.JSONArray(result.second)
+                    calls = (0 until rows.length()).map { index ->
+                        val row = rows.getJSONObject(index)
+                        CallHistoryItem(row.optString("id"), row.optString("call_type"),
+                            row.optString("status"), row.optString("caller_id"),
+                            row.optString("callee_id"), row.optString("created_at"))
+                    }
+                    status = ""
+                } else status = "Riwayat panggilan belum dapat dimuat (${result.first})."
+            } else status = "Sesi perlu diperbarui."
+        } catch (_: Exception) {
+            status = "Koneksi bermasalah. Coba muat ulang."
+        } finally { loading = false }
+    }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Calls", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
+            Text("Riwayat panggilan suara dan video", color = Muted, fontSize = 12.sp)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CallActionTile("Audio", Icons.Rounded.Call, Modifier.weight(1f))
+            CallActionTile("Video", Icons.Rounded.Call, Modifier.weight(1f))
+        }
+        Text("Recent", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        when {
+            loading -> Box(Modifier.fillMaxWidth().height(110.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(color = Mint, strokeWidth = 2.dp)
+            }
+            calls.isEmpty() -> Box(Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(24.dp)).padding(22.dp),
+                contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Rounded.Call, null, tint = Mint, modifier = Modifier.size(32.dp))
+                    Text("Belum ada panggilan", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("Riwayat panggilan akan muncul di sini.", color = Muted, fontSize = 12.sp)
+                }
+            }
+            else -> calls.forEach { call ->
+                val outgoing = call.callerId == myUserId
+                Row(Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(20.dp)).padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)),
+                        contentAlignment = Alignment.Center) {
+                        Icon(if (call.type == "video") Icons.Rounded.Call else Icons.Rounded.Call,
+                            null, tint = Mint)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(if (outgoing) "Panggilan keluar" else "Panggilan masuk",
+                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(if (call.type == "video") "Video" else "Audio", color = Muted, fontSize = 11.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(call.status.replaceFirstChar { it.uppercase() },
+                            color = if (call.status == "missed" || call.status == "rejected") Color(0xFFFF8585) else Mint,
+                            fontSize = 11.sp)
+                        Text(call.createdAt.take(16).replace("T", " "), color = Muted, fontSize = 9.sp)
+                    }
+                }
+            }
+        }
+        if (status.isNotBlank()) Text(status, color = Color(0xFFFFB4A9), fontSize = 11.sp)
+        FeatureCard("Panggilan belum aktif",
+            "Riwayat dan tampilan panggilan sudah tersedia. Audio/video langsung membutuhkan engine WebRTC serta uji koneksi dua perangkat; tombol mulai panggilan belum diaktifkan agar tidak membuat panggilan palsu.")
     }
 }
 
 @Composable
-private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
+private fun CallActionTile(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier) {
+    Row(modifier.height(66.dp).glassPanel(RoundedCornerShape(20.dp)).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(icon, null, tint = Mint, modifier = Modifier.size(22.dp))
+        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun ProfileScreen(
+    accessToken: String,
+    onLogout: () -> Unit,
+    onDeveloperContactClick: () -> Unit = {}
+) {
     var userId by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
@@ -2820,15 +3474,26 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-    Text("Settings & profile", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(8.dp))
-    Text(status, color = Mint, fontSize = 12.sp)
+    Row(
+        Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF263A32)), contentAlignment = Alignment.Center) {
+            Text(displayName.firstOrNull()?.uppercase() ?: "Z", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Settings", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (username.isBlank()) "Profil dan preferensi akun" else "@$username", color = Muted, fontSize = 12.sp)
+        }
+    }
+    Text(status, color = Mint, fontSize = 11.sp)
     Spacer(Modifier.height(16.dp))
     OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = username, onValueChange = { value -> username = AuthValidation.normalizeUsername(value) }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = bio, onValueChange = { bio = it.take(160) }, label = { Text("Bio (maks. 160 karakter)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
     Button(onClick = {
-            if (!username.trim().matches(Regex("[a-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
+            if (!username.trim().matches(Regex("[A-Za-z0-9_.]{3,30}"))) status = "Username harus 3–30 karakter: huruf, angka, titik, atau garis bawah."
             else saving = true
         }, enabled = !saving && userId.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = AccentThemeState.onAccent)) {
@@ -2845,7 +3510,7 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     LaunchedEffect(saving) {
         if (saving && userId.isNotBlank()) {
             try {
-                val body = JSONObject().put("display_name", displayName.trim()).put("username", username.trim()).put("bio", bio.trim())
+                val body = JSONObject().put("display_name", displayName.trim()).put("username", username.trim().lowercase()).put("bio", bio.trim())
                 val result = supabaseCall("/rest/v1/profiles?id=eq.$userId", accessToken, "PATCH", body)
                 status = if (result.first in 200..299) "Profil berhasil disimpan." else "Gagal menyimpan (${result.first}). Username mungkin sudah dipakai."
             } catch (_: Exception) {
@@ -2857,11 +3522,45 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     Spacer(Modifier.height(20.dp))
     FeatureCard("Account security", "Akun terhubung ke Supabase Auth.")
     Spacer(Modifier.height(12.dp))
+    AppearanceModeSection()
+    Spacer(Modifier.height(12.dp))
     AccentThemeSection()
     Spacer(Modifier.height(12.dp))
     BackgroundThemeSection()
     Spacer(Modifier.height(12.dp))
-    FeatureCard("Developer Contact", "zakikuk")
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onDeveloperContactClick)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF203B34)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Z", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("ZakssX", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Official ChatVerse Developer", color = Muted, fontSize = 11.sp)
+                    Box(
+                        Modifier.size(15.dp).clip(CircleShape).background(Color(0xFF25D366)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✓", color = Color(0xFF10231B), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Text("@ZakssX", color = Muted, fontSize = 10.sp)
+                Text("Ketuk untuk mencari dan membuka chat", color = Mint, fontSize = 10.sp)
+            }
+            Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = "Buka chat developer", tint = Mint)
+        }
+    }
     Spacer(Modifier.height(12.dp))
     AnimatedActionButton(
         label = "Sign out",
@@ -2869,6 +3568,37 @@ private fun ProfileScreen(accessToken: String, onLogout: () -> Unit) {
     ) { onLogout() }
     }
 }
+@Composable
+private fun AppearanceModeSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("ChatVerse Mode", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text("Ubah tampilan kapan saja. Pilihan tersimpan di perangkat ini.", color = Muted, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { applyLiquidGlassPalette(context, false) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (!LiquidGlassState.enabled) Mint else Color(0xFF263238),
+                    contentColor = if (!LiquidGlassState.enabled) AccentThemeState.onAccent else Color.White
+                )
+            ) { Text(if (!LiquidGlassState.enabled) "✓ Standar" else "Mode Standar") }
+            Button(
+                onClick = { applyLiquidGlassPalette(context, true) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (LiquidGlassState.enabled) Mint else Color(0xFF263238),
+                    contentColor = if (LiquidGlassState.enabled) AccentThemeState.onAccent else Color.White
+                )
+            ) { Text(if (LiquidGlassState.enabled) "✓ Liquid Glass" else "Liquid Glass") }
+        }
+        Text("Aktif: " + if (LiquidGlassState.enabled) "Liquid Glass Mode" else "Mode Standar", color = Mint, fontSize = 11.sp)
+    }
+}
+
 @Composable
 private fun AccentThemeSection() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -2967,12 +3697,12 @@ private fun AccentThemeSection() {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Live preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Box(
-                        Modifier.clip(RoundedCornerShape(14.dp)).background(Mint).padding(horizontal = 12.dp, vertical = 8.dp)
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(AccentThemeState.accent).padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text("Chat bubble", color = AccentThemeState.onAccent, fontSize = 12.sp)
                     }
                 }
-                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = Mint, modifier = Modifier.size(26.dp))
+                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = AccentThemeState.accent, modifier = Modifier.size(26.dp))
             }
         }
         if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
@@ -2985,8 +3715,8 @@ private fun BackgroundThemeSection() {
     var customHex by remember { mutableStateOf(accentColorHex(AppearanceState.background)) }
     var feedback by remember { mutableStateOf("") }
     val presets = listOf(
-        "Black" to Color(0xFF050607),
-        "White" to Color(0xFFE9EEF0),
+        "Pure Black" to Color(0xFF000000),
+        "Graphite" to Color(0xFF101214),
         "Gray" to Color(0xFF30363B),
         "Emerald" to Color(0xFF073B32),
         "Navy" to Color(0xFF101B35),
@@ -2997,7 +3727,7 @@ private fun BackgroundThemeSection() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("Background", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        Text("Pilih warna latar aplikasi. Liquid Glass tetap putih agar kontras.", color = Muted, fontSize = 12.sp)
+        Text("Pilih warna latar aplikasi. Tampilan memakai panel solid agar tetap jelas dan ringan.", color = Muted, fontSize = 12.sp)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -3031,8 +3761,11 @@ private fun BackgroundThemeSection() {
             Button(
                 onClick = {
                     val parsed = parseAccentColor(customHex)
-                    if (parsed == null) feedback = "Gunakan format #RRGGBB."
-                    else {
+                    if (parsed == null) {
+                        feedback = "Gunakan format #RRGGBB."
+                    } else if (!hasReadableWhiteText(parsed)) {
+                        feedback = "Warna terlalu terang untuk teks putih. Pilih background yang lebih gelap agar tetap terbaca."
+                    } else {
                         applyBackgroundColor(context, parsed)
                         customHex = accentColorHex(parsed)
                         feedback = "Background diterapkan."
@@ -3053,7 +3786,7 @@ private fun BackgroundThemeSection() {
             contentAlignment = Alignment.Center
         ) {
             Box(Modifier.fillMaxWidth(0.72f).height(34.dp).glassPanel(RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                Text("Liquid Glass preview", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("ChatVerse • Tampilan standar", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         if (feedback.isNotBlank()) Text(feedback, color = Mint, fontSize = 11.sp)
@@ -3062,15 +3795,10 @@ private fun BackgroundThemeSection() {
 
 @Composable
 private fun FeatureCard(title: String, subtitle: String) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Panel.copy(alpha = 0.82f)),
-        shape = RoundedCornerShape(22.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(18.dp)) {
+    Box(Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(22.dp)).padding(18.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            Spacer(Modifier.height(6.dp))
-            Text(subtitle, color = Muted, fontSize = 12.sp)
+            Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
     }
 }
@@ -3085,47 +3813,32 @@ private fun GlassPanelSurface(content: @Composable () -> Unit) {
 private fun Modifier.glassPanel(shape: RoundedCornerShape): Modifier = this
     .clip(shape)
     .background(
-        Brush.linearGradient(
-            colors = listOf(
-                Color(0x42FFFFFF),
-                Color(0x20FFFFFF),
-                Color(0x12FFFFFF),
-                Color(0x30FFFFFF)
-            )
-        )
+        if (LiquidGlassState.enabled) Color(0xF02A2A2C) else Color(0xFF1F2C34)
     )
     .border(
         width = 1.dp,
-        brush = Brush.linearGradient(
-            colors = listOf(
-                Color(0xEFFFFFFF),
-                Color(0x70FFFFFF),
-                Color(0x24FFFFFF),
-                Color(0xBFFFFFFF)
-            )
-        ),
+        color = if (LiquidGlassState.enabled) Color.White.copy(alpha = 0.10f) else Color(0xFF293943),
         shape = shape
     )
 
 @Composable
-private fun GlassNavigation(
+private fun BottomNavigationBar(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .glassPanel(RoundedCornerShape(28.dp))
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        modifier = modifier.fillMaxWidth().background(Color(0xFF111B21))
+            .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.07f)),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect)
-        NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect)
-        NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect)
-        NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect)
-        NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect)
+        Row(Modifier.fillMaxWidth().semantics { selectableGroup() }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            NavigationItem("Chats", Icons.Rounded.ChatBubbleOutline, 0, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Updates", Icons.Rounded.Update, 1, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Communities", Icons.Rounded.Groups, 2, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Calls", Icons.Rounded.Call, 3, selected, onSelect, Modifier.weight(1f))
+            NavigationItem("Settings", Icons.Rounded.Settings, 4, selected, onSelect, Modifier.weight(1f))
+        }
     }
 }
 
@@ -3135,37 +3848,33 @@ private fun NavigationItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     index: Int,
     selected: Int,
-    onSelect: (Int) -> Unit
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val active = selected == index
+    val secretMode = LiquidGlassState.enabled
+    val activeTint = if (secretMode) Color(0xFFEBD7FF) else Color(0xFF25D366)
+    val inactiveTint = if (secretMode) Color(0xFFE2E2E2) else Color(0xFF8696A0)
+    val tint by animateColorAsState(if (active) activeTint else inactiveTint, tween(220), label = "navTint")
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.94f else 1f,
-        animationSpec = spring(),
-        label = "navPressScale"
-    )
-    val tint by animateColorAsState(if (active) Color(0xFF087D63) else Muted, label = "navTint")
-    val horizontalPadding by animateDpAsState(if (active) 17.dp else 12.dp, label = "navPadding")
-
-    Row(
-        modifier = Modifier
+    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, spring(stiffness = 420f, dampingRatio = 0.78f), label = "navPressScale")
+    Column(
+        modifier = modifier.fillMaxWidth().height(if (secretMode) 58.dp else 62.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(18.dp))
-            .then(
-                if (active) Modifier
-                    .background(Brush.linearGradient(listOf(Color(0xDFFFFFFF), Color(0x88FFFFFF), Color(0x4DFFFFFF))))
-                    .border(1.dp, Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
-                else Modifier.background(Color.Transparent)
-            )
-            .clickable(interactionSource = interactionSource, indication = null) { onSelect(index) }
-            .padding(horizontal = horizontalPadding, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(if (secretMode) 22.dp else 12.dp))
+            .semantics { this.selected = active }
+            .clickable(interactionSource = interactionSource, indication = null, role = Role.Tab) { onSelect(index) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(19.dp))
-        if (active) {
-            Spacer(Modifier.width(7.dp))
-            Text(label, color = tint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        }
+        Box(
+            Modifier.clip(RoundedCornerShape(if (secretMode) 22.dp else 18.dp))
+                .background(when { !active || secretMode -> Color.Transparent; else -> Color(0xFF123D2C) })
+                .padding(horizontal = if (secretMode) 12.dp else 15.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) { Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp)) }
+        Spacer(Modifier.height(3.dp))
+        Text(label, color = tint, fontSize = if (secretMode) 8.sp else 9.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
     }
 }
